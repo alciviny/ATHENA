@@ -36,6 +36,7 @@ class PerformanceEvent:
     event_type: PerformanceEventType
     occurred_at: datetime
 
+    topic: str
     metric: PerformanceMetric
     value: float
     baseline: float

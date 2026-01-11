@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 
 from brain.api.fastapi.routes import study_routes
 from brain.application.use_cases.generate_study_plan import StudentNotFoundError
+from brain.api.fastapi.routes.study_routes import student_repo, know_repo, perf_repo
+from brain.api.fastapi.dependencies import seed_repositories_extended
+
 
 # ========================
 # Configuração do Logger
@@ -69,3 +72,8 @@ def health_check():
         "version": app.version,
         "time": datetime.now(timezone.utc).isoformat()
     }
+
+@app.on_event("startup")
+async def startup_event():
+    # Isso vai rodar seu seeder estendido e mostrar o ID no console
+    seed_repositories_extended(student_repo, know_repo, perf_repo)
