@@ -9,15 +9,19 @@ from sqlalchemy.orm import sessionmaker, Session
 # ----------------------
 # Configuração da DB
 # ----------------------
-POSTGRES_USER = os.getenv("POSTGRES_USER", "utilizador")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "senha")
-POSTGRES_DB = os.getenv("POSTGRES_DB", "athena_db")
-POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+# Para desenvolvimento, usar SQLite
+SQLALCHEMY_DATABASE_URL = "sqlite:///./athena.db"
 
-SQLALCHEMY_DATABASE_URL = (
-    f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-)
+# Configuração original para PostgreSQL (comentada)
+# POSTGRES_USER = os.getenv("POSTGRES_USER", "utilizador")
+# POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "senha")
+# POSTGRES_DB = os.getenv("POSTGRES_DB", "athena_db")
+# POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+# POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+
+# SQLALCHEMY_DATABASE_URL = (
+#     f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+# )
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

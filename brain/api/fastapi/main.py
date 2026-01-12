@@ -76,22 +76,19 @@ def health_check():
 async def startup_event():
     Base.metadata.create_all(bind=engine)
     
-    # Criamos uma sessão manualmente para o seeder
+    # Criamos uma sessão manual para o seeder usar os repositórios reais
     from brain.infrastructure.persistence.database import SessionLocal
     from brain.api.fastapi.dependencies import seed_repositories_extended
     from brain.infrastructure.persistence.postgres_repositories import (
         PostgresStudentRepository, PostgresKnowledgeRepository, PostgresPerformanceRepository
     )
     
-    db = SessionLocal()
-    try:
-        # Instanciamos os repositórios reais
+    with SessionLocal() as db:
+        # Instancia os repositórios reais
         student_repo = PostgresStudentRepository(db)
         know_repo = PostgresKnowledgeRepository(db)
         perf_repo = PostgresPerformanceRepository(db)
         
-        # Rodamos o seeder
+        # Corre o seeder
         seed_repositories_extended(student_repo, know_repo, perf_repo)
-        db.commit() # Garante que os dados do seed sejam salvos
-    finally:
-        db.close()
+        db.commit() # Salva tudo no Postgres

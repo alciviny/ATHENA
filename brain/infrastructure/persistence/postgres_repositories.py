@@ -74,6 +74,8 @@ class PostgresStudentRepository(StudentRepository):
         model = StudentModel(
             id=student.id,
             name=student.name,
+            goal=student.goal.value,  # Armazena o valor do enum
+            cognitive_profile_id=student.cognitive_profile_id,
         )
         self.db.add(model)
 
@@ -84,7 +86,13 @@ class PostgresStudentRepository(StudentRepository):
         return None
 
     def _to_entity(self, model: StudentModel) -> Student:
-        return Student(id=model.id, name=model.name)
+        from brain.domain.entities.student import StudentGoal
+        return Student(
+            id=model.id, 
+            name=model.name, 
+            goal=StudentGoal(model.goal),
+            cognitive_profile_id=model.cognitive_profile_id
+        )
 
 
 
