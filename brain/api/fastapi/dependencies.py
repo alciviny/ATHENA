@@ -1,6 +1,6 @@
 from uuid import uuid4, UUID
 from typing import Tuple, List
-from brain.domain.entities.student import Student, Goal
+from brain.domain.entities.student import Student, StudentGoal
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.knowledge_node import KnowledgeNode
 
@@ -29,12 +29,13 @@ def seed_repositories(student_repo, know_repo) -> UUID:
     """
     # 1. Criar um Aluno de Teste
     student_id = uuid4()
-    profile = CognitiveProfile(retention_rate=0.7, learning_speed=1.0)
+    # Este profile foi movido para dentro da criação do Student
+    # profile = CognitiveProfile(retention_rate=0.7, learning_speed=1.0) 
     test_student = Student(
         id=student_id, 
         name=TEST_STUDENT_NAME, 
-        goal=Goal.PF, 
-        cognitive_profile=profile
+        goal=StudentGoal.POLICIA_FEDERAL, 
+        # cognitive_profile=profile # O profile agora é um ID
     )
     student_repo.save(test_student)
     
@@ -82,19 +83,19 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
     students_data = [
         {
             "name": TEST_STUDENT_NAME,
-            "goal": Goal.PF,
+            "goal": StudentGoal.POLICIA_FEDERAL,
             "retention": 0.7,
             "speed": 1.0
         },
         {
             "name": "Maria Silva",
-            "goal": Goal.PF,
+            "goal": StudentGoal.INSS,
             "retention": 0.8,
             "speed": 1.2
         },
         {
             "name": "João Santos",
-            "goal": Goal.PF,
+            "goal": StudentGoal.RECEITA_FEDERAL,
             "retention": 0.6,
             "speed": 0.9
         }
@@ -103,15 +104,15 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
     created_students = []
     for data in students_data:
         student_id = uuid4()
-        profile = CognitiveProfile(
-            retention_rate=data["retention"], 
-            learning_speed=data["speed"]
-        )
+        # profile = CognitiveProfile(
+        #     retention_rate=data["retention"], 
+        #     learning_speed=data["speed"]
+        # )
         student = Student(
             id=student_id,
             name=data["name"],
             goal=data["goal"],
-            cognitive_profile=profile
+            # cognitive_profile=profile
         )
         student_repo.save(student)
         created_students.append((student_id, data["name"]))
@@ -193,10 +194,10 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
         node_id = uuid4()
         node = KnowledgeNode(
             id=node_id,
-            title=data["title"],
-            content=data["content"],
-            difficulty=data["difficulty"],
-            impact=data["impact"]
+            name=data["content"],
+            subject=data["title"],
+            weight_in_exam=data["impact"],
+            difficulty=data["difficulty"]
         )
         nodes.append(node)
         node_ids.append(node_id)
@@ -205,7 +206,7 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
     
     # 3. Adicionar eventos de performance se o repositório foi fornecido
     if performance_repo:
-        from brain.domain.entities.PerformanceEvent import PerformanceEvent
+        from brain.domain.entities.PerformanceEvent import PerformanceEvent, PerformanceEventType, PerformanceMetric
         from datetime import datetime, timedelta
         
         # Adicionar alguns eventos de exemplo para o primeiro aluno
@@ -214,22 +215,34 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
         
         sample_events = [
             PerformanceEvent(
+                id=uuid4(),
                 student_id=main_student_id,
+                event_type=PerformanceEventType.QUIZ,
+                occurred_at=base_date + timedelta(days=1),
                 topic=MATERIA_DIREITO_ADMINISTRATIVO,
-                correct=True,
-                timestamp=base_date + timedelta(days=1)
+                metric=PerformanceMetric.ACCURACY,
+                value=1.0,
+                baseline=0.5
             ),
             PerformanceEvent(
+                id=uuid4(),
                 student_id=main_student_id,
+                event_type=PerformanceEventType.QUIZ,
+                occurred_at=base_date + timedelta(days=2),
                 topic=MATERIA_INFORMATICA,
-                correct=False,
-                timestamp=base_date + timedelta(days=2)
+                metric=PerformanceMetric.ACCURACY,
+                value=0.0,
+                baseline=0.5
             ),
             PerformanceEvent(
+                id=uuid4(),
                 student_id=main_student_id,
+                event_type=PerformanceEventType.QUIZ,
+                occurred_at=base_date + timedelta(days=3),
                 topic=MATERIA_DIREITO_CONSTITUCIONAL,
-                correct=True,
-                timestamp=base_date + timedelta(days=3)
+                metric=PerformanceMetric.ACCURACY,
+                value=1.0,
+                baseline=0.5
             ),
         ]
         
@@ -247,9 +260,9 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
     # Agrupar por disciplina
     topics = {}
     for node in nodes:
-        if node.title not in topics:
-            topics[node.title] = 0
-        topics[node.title] += 1
+        if node.subject not in topics:
+            topics[node.subject] = 0
+        topics[node.subject] += 1
     
     print("\n📊 Distribuição por disciplina:")
     for topic, count in topics.items():

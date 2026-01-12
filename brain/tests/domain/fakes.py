@@ -64,12 +64,14 @@ def fake_performance_event(
     student_id: UUID | None = None,
     event_type: PerformanceEventType = PerformanceEventType.STUDY_SESSION,
     occurred_at: datetime | None = None,
+    topic: str = "Test Topic",
 ) -> PerformanceEvent:
     return PerformanceEvent(
         id=uuid4(),
         student_id=student_id or uuid4(),
         event_type=event_type,
         occurred_at=occurred_at or datetime.now(timezone.utc),
+        topic=topic,
         metric=metric,
         value=value,
         baseline=baseline,
