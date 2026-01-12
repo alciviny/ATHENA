@@ -5,8 +5,7 @@ from datetime import datetime, timezone
 
 from brain.api.fastapi.routes import study_routes
 from brain.application.use_cases.generate_study_plan import StudentNotFoundError
-from brain.api.fastapi.routes.study_routes import student_repo, know_repo, perf_repo
-from brain.api.fastapi.dependencies import seed_repositories_extended
+from brain.infrastructure.persistence.database import engine, Base
 
 
 # ========================
@@ -75,5 +74,8 @@ def health_check():
 
 @app.on_event("startup")
 async def startup_event():
-    # Isso vai rodar seu seeder estendido e mostrar o ID no console
-    seed_repositories_extended(student_repo, know_repo, perf_repo)
+    # Cria as tabelas se não existirem
+    Base.metadata.create_all(bind=engine)
+    
+    # Chama o seeder (opcional, se quiser popular o banco novo)
+    # seed_repositories_extended(student_repo, know_repo, perf_repo)
