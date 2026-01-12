@@ -29,31 +29,28 @@ def seed_repositories(student_repo, know_repo) -> UUID:
     """
     # 1. Criar um Aluno de Teste
     student_id = uuid4()
-    # Este profile foi movido para dentro da criação do Student
-    # profile = CognitiveProfile(retention_rate=0.7, learning_speed=1.0) 
     test_student = Student(
         id=student_id, 
         name=TEST_STUDENT_NAME, 
-        goal=StudentGoal.POLICIA_FEDERAL, 
-        # cognitive_profile=profile # O profile agora é um ID
+        goal=StudentGoal.POLICIA_FEDERAL
     )
-    student_repo.save(test_student)
+    student_repo.add(test_student)
     
     # 2. Criar um pequeno Grafo de Conhecimento
     nodes = [
         KnowledgeNode(
             id=uuid4(), 
-            title=MATERIA_DIREITO_ADMINISTRATIVO, 
-            content="Atos Administrativos", 
+            subject=MATERIA_DIREITO_ADMINISTRATIVO, 
+            name="Atos Administrativos", 
             difficulty=0.8, 
-            impact=1.0
+            weight_in_exam=1.0
         ),
         KnowledgeNode(
             id=uuid4(), 
-            title=MATERIA_INFORMATICA, 
-            content=TOPICO_REDES_DE_COMPUTADORES, 
+            subject=MATERIA_INFORMATICA, 
+            name=TOPICO_REDES_DE_COMPUTADORES, 
             difficulty=0.6, 
-            impact=0.9
+            weight_in_exam=0.9
         ),
     ]
     know_repo.set_graph(nodes)
@@ -84,107 +81,96 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
         {
             "name": TEST_STUDENT_NAME,
             "goal": StudentGoal.POLICIA_FEDERAL,
-            "retention": 0.7,
-            "speed": 1.0
         },
         {
             "name": "Maria Silva",
             "goal": StudentGoal.INSS,
-            "retention": 0.8,
-            "speed": 1.2
         },
         {
             "name": "João Santos",
             "goal": StudentGoal.RECEITA_FEDERAL,
-            "retention": 0.6,
-            "speed": 0.9
         }
     ]
     
     created_students = []
     for data in students_data:
         student_id = uuid4()
-        # profile = CognitiveProfile(
-        #     retention_rate=data["retention"], 
-        #     learning_speed=data["speed"]
-        # )
         student = Student(
             id=student_id,
             name=data["name"],
             goal=data["goal"],
-            # cognitive_profile=profile
         )
-        student_repo.save(student)
+        student_repo.add(student)
         created_students.append((student_id, data["name"]))
     
     # 2. Criar um grafo de conhecimento mais completo
     knowledge_data = [
         # Direito Administrativo
         {
-            "title": MATERIA_DIREITO_ADMINISTRATIVO,
-            "content": "Atos Administrativos",
+            "subject": MATERIA_DIREITO_ADMINISTRATIVO,
+            "name": "Atos Administrativos",
             "difficulty": 0.8,
-            "impact": 1.0
+            "weight_in_exam": 1.0
         },
         {
-            "title": MATERIA_DIREITO_ADMINISTRATIVO,
-            "content": "Princípios da Administração Pública",
+            "subject": MATERIA_DIREITO_ADMINISTRATIVO,
+            "name": "Princípios da Administração Pública",
             "difficulty": 0.6,
-            "impact": 0.9
+            "weight_in_exam": 0.9
         },
         {
-            "title": MATERIA_DIREITO_ADMINISTRATIVO,
-            "content": "Licitações e Contratos",
+            "subject": MATERIA_DIREITO_ADMINISTRATIVO,
+            "name": "Licitações e Contratos",
             "difficulty": 0.7,
-            "impact": 0.85
+            "weight_in_exam": 0.85
         },
         
         # Informática
         {
-            "title": MATERIA_INFORMATICA,
-            "content": TOPICO_REDES_DE_COMPUTADORES,
+            "subject": MATERIA_INFORMATICA,
+            "name": TOPICO_REDES_DE_COMPUTADORES,
             "difficulty": 0.6,
-            "impact": 0.9
+            "weight_in_exam": 0.9
         },
         {
-            "title": MATERIA_INFORMATICA,
-            "content": "Segurança da Informação",
+            "subject": MATERIA_INFORMATICA,
+            "name": "Segurança da Informação",
             "difficulty": 0.7,
-            "impact": 0.95
+            "weight_in_exam": 0.95
         },
         {
-            "title": MATERIA_INFORMATICA,
-            "content": "Sistemas Operacionais",
+            "subject": MATERIA_INFORMATICA,
+            "name": "Sistemas Operacionais",
             "difficulty": 0.5,
-            "impact": 0.8
+            "weight_in_exam": 0.8
         },
         
         # Direito Constitucional
         {
-            "title": MATERIA_DIREITO_CONSTITUCIONAL,
-            "content": "Direitos Fundamentais",
+            "subject": MATERIA_DIREITO_CONSTITUCIONAL,
+            "name": "Direitos Fundamentais",
             "difficulty": 0.7,
-            "impact": 1.0
+            "weight_in_exam": 1.0
         },
         {
-            "title": MATERIA_DIREITO_CONSTITUCIONAL,
-            "content": "Organização do Estado",
+            "subject": MATERIA_DIREITO_CONSTITUCIONAL,
+            "name": "Organização do Estado",
             "difficulty": 0.6,
-            "impact": 0.85
+            "weight_in_exam": 0.85
         },
         
         # Português
         {
-            "title": MATERIA_LINGUA_PORTUGUESA,
-            "content": "Sintaxe e Semântica",
+            "subject": MATERIA_LINGUA_PORTUGUESA,
+            "name": "Sintaxe e Semântica",
             "difficulty": 0.5,
-            "impact": 0.9
+            "weight_in_exam": 0.9
         },
         {
-            "title": MATERIA_LINGUA_PORTUGUESA,
-            "content": "Interpretação de Textos",
+            "subject": MATERIA_LINGUA_PORTUGUESA,
+            "name": "Interpretação de Textos",
             "difficulty": 0.6,
-            "impact": 1.0
+            "weight_in_exam": 1.0
         },
     ]
     
@@ -194,9 +180,9 @@ def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -
         node_id = uuid4()
         node = KnowledgeNode(
             id=node_id,
-            name=data["content"],
-            subject=data["title"],
-            weight_in_exam=data["impact"],
+            name=data["name"],
+            subject=data["subject"],
+            weight_in_exam=data["weight_in_exam"],
             difficulty=data["difficulty"]
         )
         nodes.append(node)
