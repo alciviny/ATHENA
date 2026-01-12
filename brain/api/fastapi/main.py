@@ -74,8 +74,24 @@ def health_check():
 
 @app.on_event("startup")
 async def startup_event():
-    # Cria as tabelas se não existirem
     Base.metadata.create_all(bind=engine)
     
-    # Chama o seeder (opcional, se quiser popular o banco novo)
-    # seed_repositories_extended(student_repo, know_repo, perf_repo)
+    # Criamos uma sessão manualmente para o seeder
+    from brain.infrastructure.persistence.database import SessionLocal
+    from brain.api.fastapi.dependencies import seed_repositories_extended
+    from brain.infrastructure.persistence.postgres_repositories import (
+        PostgresStudentRepository, PostgresKnowledgeRepository, PostgresPerformanceRepository
+    )
+    
+    db = SessionLocal()
+    try:
+        # Instanciamos os repositórios reais
+        student_repo = PostgresStudentRepository(db)
+        know_repo = PostgresKnowledgeRepository(db)
+        perf_repo = PostgresPerformanceRepository(db)
+        
+        # Rodamos o seeder
+        seed_repositories_extended(student_repo, know_repo, perf_repo)
+        db.commit() # Garante que os dados do seed sejam salvos
+    finally:
+        db.close()
