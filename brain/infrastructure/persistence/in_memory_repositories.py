@@ -5,11 +5,13 @@ from brain.domain.entities.student import Student
 from brain.domain.entities.PerformanceEvent import PerformanceEvent
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.entities.StudyPlan import StudyPlan
+from brain.domain.entities.error_event import ErrorEvent
 from brain.application.ports.repositories import (
     StudentRepository,
     PerformanceRepository,
     KnowledgeRepository,
-    StudyPlanRepository
+    StudyPlanRepository,
+    ErrorEventRepository
 )
 
 
@@ -71,6 +73,8 @@ class InMemoryPerformanceRepository(PerformanceRepository):
 class InMemoryKnowledgeRepository(KnowledgeRepository):
     def __init__(self):
         self.nodes: List[KnowledgeNode] = []
+        self._nodes_by_id: Dict[UUID, KnowledgeNode] = {}
+        self._nodes_by_subject: Dict[str, List[KnowledgeNode]] = {}
     
     def get_full_graph(self) -> List[KnowledgeNode]:
         """Get all knowledge nodes in the graph."""
@@ -78,26 +82,68 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
     
     def set_graph(self, nodes: List[KnowledgeNode]) -> None:
         """Replace the entire knowledge graph."""
-        self.nodes = nodes.copy()  # Store a copy to prevent external modifications
-    
-    def get_node_by_id(self, node_id: str) -> Optional[KnowledgeNode]:
-        """Get a specific knowledge node by its ID."""
+        self.nodes = nodes.copy()
+        self._nodes_by_id = {node.id: node for node in self.nodes}
+        self._nodes_by_subject = {}
         for node in self.nodes:
-            if hasattr(node, 'id') and node.id == node_id:
-                return node
-        return None
+            if node.subject not in self._nodes_by_subject:
+                self._nodes_by_subject[node.subject] = []
+            self._nodes_by_subject[node.subject].append(node)
     
+    def get_node_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
+        """Get a specific knowledge node by its ID."""
+        return self._nodes_by_id.get(node_id)
+        
     def add_node(self, node: KnowledgeNode) -> None:
         """Add a single knowledge node to the graph."""
-        self.nodes.append(node)
-    
+        if node.id not in self._nodes_by_id:
+            self.nodes.append(node)
+            self._nodes_by_id[node.id] = node
+            if node.subject not in self._nodes_by_subject:
+                self._nodes_by_subject[node.subject] = []
+            self._nodes_by_subject[node.subject].append(node)
+
     def update_node(self, node: KnowledgeNode) -> bool:
         """Update an existing knowledge node."""
-        for i, existing_node in enumerate(self.nodes):
-            if hasattr(existing_node, 'id') and hasattr(node, 'id') and existing_node.id == node.id:
-                self.nodes[i] = node
-                return True
+        if node.id in self._nodes_by_id:
+            # Find and update in the main list
+            for i, existing_node in enumerate(self.nodes):
+                if existing_node.id == node.id:
+                    self.nodes[i] = node
+                    break
+            # Update in the subject dictionary
+            subject_nodes = self._nodes_by_subject.get(node.subject, [])
+            for i, existing_node in enumerate(subject_nodes):
+                if existing_node.id == node.id:
+                    subject_nodes[i] = node
+                    break
+            self._nodes_by_id[node.id] = node
+            return True
         return False
+
+    def get_nodes_by_subject(self, subject: str) -> List[KnowledgeNode]:
+        return self._nodes_by_subject.get(subject, [])
+
+
+class InMemoryErrorEventRepository(ErrorEventRepository):
+    def __init__(self, knowledge_repo: InMemoryKnowledgeRepository):
+        self.errors: List[ErrorEvent] = []
+        self.knowledge_repo = knowledge_repo
+
+    def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
+        return [error for error in self.errors if error.student_id == student_id]
+
+    def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
+        subject_nodes = self.knowledge_repo.get_nodes_by_subject(subject)
+        subject_node_ids = {node.id for node in subject_nodes}
+        
+        return [
+            error for error in self.errors 
+            if error.student_id == student_id and error.knowledge_node_id in subject_node_ids
+        ]
+        
+    def add_error(self, error: ErrorEvent):
+        self.errors.append(error)
 
 
 class InMemoryStudyPlanRepository(StudyPlanRepository):

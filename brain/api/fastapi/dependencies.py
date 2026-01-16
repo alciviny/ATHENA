@@ -1,283 +1,176 @@
+import logging
 from uuid import uuid4, UUID
-from typing import Tuple, List
+from typing import Tuple, List, Optional
+from datetime import datetime, timedelta
+
 from brain.domain.entities.student import Student, StudentGoal
-from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.knowledge_node import KnowledgeNode
+from brain.application.use_cases.analyze_student_performance import (
+    AnalyzeStudentPerformance,
+)
+from brain.infrastructure.llm.mock_ai_service import MockAIService
+from brain.infrastructure.persistence.in_memory_repositories import (
+    InMemoryErrorEventRepository,
+    InMemoryKnowledgeRepository,
+)
 
+logger = logging.getLogger(__name__)
 
-SEED_SUCCESS_MESSAGE = "\n🚀 Sistema populado com sucesso"
+# ========================
+# Constantes de Seed
+# ========================
 
 MATERIA_DIREITO_ADMINISTRATIVO = "Direito Administrativo"
 MATERIA_INFORMATICA = "Informática"
 MATERIA_DIREITO_CONSTITUCIONAL = "Direito Constitucional"
 MATERIA_LINGUA_PORTUGUESA = "Língua Portuguesa"
-TEST_STUDENT_NAME = "Jose Alcionis"
+
 TOPICO_REDES_DE_COMPUTADORES = "Redes de Computadores"
+TEST_STUDENT_NAME = "Jose Alcionis"
 
+# ========================
+# Seed helpers
+# ========================
 
-
-def seed_repositories(student_repo, know_repo) -> UUID:
-    """
-    Popula os repositórios com dados de teste.
-    
-    Args:
-        student_repo: Repositório de estudantes
-        know_repo: Repositório de conhecimento
-        
-    Returns:
-        UUID: ID do estudante criado para testes
-    """
-    # 1. Criar um Aluno de Teste
-    student_id = uuid4()
-    test_student = Student(
-        id=student_id, 
-        name=TEST_STUDENT_NAME, 
-        goal=StudentGoal.POLICIA_FEDERAL
-    )
-    student_repo.add(test_student)
-    
-    # 2. Criar um pequeno Grafo de Conhecimento
-    nodes = [
-        KnowledgeNode(
-            id=uuid4(), 
-            subject=MATERIA_DIREITO_ADMINISTRATIVO, 
-            name="Atos Administrativos", 
-            difficulty=0.8, 
-            weight_in_exam=1.0
-        ),
-        KnowledgeNode(
-            id=uuid4(), 
-            subject=MATERIA_INFORMATICA, 
-            name=TOPICO_REDES_DE_COMPUTADORES, 
-            difficulty=0.6, 
-            weight_in_exam=0.9
-        ),
-    ]
-    know_repo.set_graph(nodes)
-    
-    print(f"{SEED_SUCCESS_MESSAGE}!")
-    print(f"📚 Estudante criado: {test_student.name}")
-    print(f"🎯 Objetivo: {test_student.goal.value if hasattr(test_student.goal, 'value') else test_student.goal}")
-    print(f"🆔 ID do aluno para testes: {student_id}")
-    print(f"📊 Nós de conhecimento criados: {len(nodes)}\n")
-    
-    return student_id
-
-
-def seed_repositories_extended(student_repo, know_repo, performance_repo=None) -> Tuple[UUID, List[UUID]]:
-    """
-    Versão estendida com mais dados de teste, incluindo múltiplos alunos e grafo maior.
-    
-    Args:
-        student_repo: Repositório de estudantes
-        know_repo: Repositório de conhecimento
-        performance_repo: Repositório de performance (opcional)
-        
-    Returns:
-        Tuple[UUID, List[UUID]]: ID do aluno principal e lista de IDs de nós de conhecimento
-    """
-    # 1. Criar múltiplos alunos de teste
+def seed_students(student_repo) -> List[UUID]:
     students_data = [
-        {
-            "name": TEST_STUDENT_NAME,
-            "goal": StudentGoal.POLICIA_FEDERAL,
-        },
-        {
-            "name": "Maria Silva",
-            "goal": StudentGoal.INSS,
-        },
-        {
-            "name": "João Santos",
-            "goal": StudentGoal.RECEITA_FEDERAL,
-        }
+        (TEST_STUDENT_NAME, StudentGoal.POLICIA_FEDERAL),
+        ("Maria Silva", StudentGoal.INSS),
+        ("João Santos", StudentGoal.RECEITA_FEDERAL),
     ]
-    
-    created_students = []
-    for data in students_data:
+
+    student_ids: List[UUID] = []
+
+    for name, goal in students_data:
         student_id = uuid4()
-        student = Student(
-            id=student_id,
-            name=data["name"],
-            goal=data["goal"],
-        )
-        student_repo.add(student)
-        created_students.append((student_id, data["name"]))
-    
-    # 2. Criar um grafo de conhecimento mais completo
+        student_repo.add(Student(id=student_id, name=name, goal=goal))
+        student_ids.append(student_id)
+
+    logger.info("Seeded %s students", len(student_ids))
+    return student_ids
+
+
+def seed_knowledge_graph(know_repo) -> List[UUID]:
     knowledge_data = [
-        # Direito Administrativo
-        {
-            "subject": MATERIA_DIREITO_ADMINISTRATIVO,
-            "name": "Atos Administrativos",
-            "difficulty": 0.8,
-            "weight_in_exam": 1.0
-        },
-        {
-            "subject": MATERIA_DIREITO_ADMINISTRATIVO,
-            "name": "Princípios da Administração Pública",
-            "difficulty": 0.6,
-            "weight_in_exam": 0.9
-        },
-        {
-            "subject": MATERIA_DIREITO_ADMINISTRATIVO,
-            "name": "Licitações e Contratos",
-            "difficulty": 0.7,
-            "weight_in_exam": 0.85
-        },
-        
-        # Informática
-        {
-            "subject": MATERIA_INFORMATICA,
-            "name": TOPICO_REDES_DE_COMPUTADORES,
-            "difficulty": 0.6,
-            "weight_in_exam": 0.9
-        },
-        {
-            "subject": MATERIA_INFORMATICA,
-            "name": "Segurança da Informação",
-            "difficulty": 0.7,
-            "weight_in_exam": 0.95
-        },
-        {
-            "subject": MATERIA_INFORMATICA,
-            "name": "Sistemas Operacionais",
-            "difficulty": 0.5,
-            "weight_in_exam": 0.8
-        },
-        
-        # Direito Constitucional
-        {
-            "subject": MATERIA_DIREITO_CONSTITUCIONAL,
-            "name": "Direitos Fundamentais",
-            "difficulty": 0.7,
-            "weight_in_exam": 1.0
-        },
-        {
-            "subject": MATERIA_DIREITO_CONSTITUCIONAL,
-            "name": "Organização do Estado",
-            "difficulty": 0.6,
-            "weight_in_exam": 0.85
-        },
-        
-        # Português
-        {
-            "subject": MATERIA_LINGUA_PORTUGUESA,
-            "name": "Sintaxe e Semântica",
-            "difficulty": 0.5,
-            "weight_in_exam": 0.9
-        },
-        {
-            "subject": MATERIA_LINGUA_PORTUGUESA,
-            "name": "Interpretação de Textos",
-            "difficulty": 0.6,
-            "weight_in_exam": 1.0
-        },
+        (MATERIA_DIREITO_ADMINISTRATIVO, "Atos Administrativos", 0.8, 1.0),
+        (MATERIA_DIREITO_ADMINISTRATIVO, "Princípios da Administração Pública", 0.6, 0.9),
+        (MATERIA_DIREITO_ADMINISTRATIVO, "Licitações e Contratos", 0.7, 0.85),
+        (MATERIA_INFORMATICA, TOPICO_REDES_DE_COMPUTADORES, 0.6, 0.9),
+        (MATERIA_INFORMATICA, "Segurança da Informação", 0.7, 0.95),
+        (MATERIA_INFORMATICA, "Sistemas Operacionais", 0.5, 0.8),
+        (MATERIA_DIREITO_CONSTITUCIONAL, "Direitos Fundamentais", 0.7, 1.0),
+        (MATERIA_DIREITO_CONSTITUCIONAL, "Organização do Estado", 0.6, 0.85),
+        (MATERIA_LINGUA_PORTUGUESA, "Sintaxe e Semântica", 0.5, 0.9),
+        (MATERIA_LINGUA_PORTUGUESA, "Interpretação de Textos", 0.6, 1.0),
     ]
-    
+
     nodes = []
     node_ids = []
-    for data in knowledge_data:
+
+    for subject, name, difficulty, weight in knowledge_data:
         node_id = uuid4()
-        node = KnowledgeNode(
-            id=node_id,
-            name=data["name"],
-            subject=data["subject"],
-            weight_in_exam=data["weight_in_exam"],
-            difficulty=data["difficulty"]
+        nodes.append(
+            KnowledgeNode(
+                id=node_id,
+                subject=subject,
+                name=name,
+                difficulty=difficulty,
+                weight_in_exam=weight,
+            )
         )
-        nodes.append(node)
         node_ids.append(node_id)
-    
+
     know_repo.set_graph(nodes)
-    
-    # 3. Adicionar eventos de performance se o repositório foi fornecido
-    if performance_repo:
-        from brain.domain.entities.PerformanceEvent import PerformanceEvent, PerformanceEventType, PerformanceMetric
-        from datetime import datetime, timedelta
-        
-        # Adicionar alguns eventos de exemplo para o primeiro aluno
-        main_student_id = created_students[0][0]
-        base_date = datetime.now() - timedelta(days=7)
-        
-        sample_events = [
-            PerformanceEvent(
-                id=uuid4(),
-                student_id=main_student_id,
-                event_type=PerformanceEventType.QUIZ,
-                occurred_at=base_date + timedelta(days=1),
-                topic=MATERIA_DIREITO_ADMINISTRATIVO,
-                metric=PerformanceMetric.ACCURACY,
-                value=1.0,
-                baseline=0.5
-            ),
-            PerformanceEvent(
-                id=uuid4(),
-                student_id=main_student_id,
-                event_type=PerformanceEventType.QUIZ,
-                occurred_at=base_date + timedelta(days=2),
-                topic=MATERIA_INFORMATICA,
-                metric=PerformanceMetric.ACCURACY,
-                value=0.0,
-                baseline=0.5
-            ),
-            PerformanceEvent(
-                id=uuid4(),
-                student_id=main_student_id,
-                event_type=PerformanceEventType.QUIZ,
-                occurred_at=base_date + timedelta(days=3),
-                topic=MATERIA_DIREITO_CONSTITUCIONAL,
-                metric=PerformanceMetric.ACCURACY,
-                value=1.0,
-                baseline=0.5
-            ),
-        ]
-        
-        for event in sample_events:
-            performance_repo.add_event(event)
-    
-    # Relatório de criação
-    print(f"{SEED_SUCCESS_MESSAGE} (modo estendido)!")
-    print(f"\n👥 Estudantes criados ({len(created_students)}):")
-    for idx, (sid, name) in enumerate(created_students, 1):
-        print(f"  {idx}. {name} - ID: {sid}")
-    
-    print(f"\n📚 Nós de conhecimento criados: {len(nodes)}")
-    
-    # Agrupar por disciplina
-    topics = {}
-    for node in nodes:
-        if node.subject not in topics:
-            topics[node.subject] = 0
-        topics[node.subject] += 1
-    
-    print("\n📊 Distribuição por disciplina:")
-    for topic, count in topics.items():
-        print(f"  • {topic}: {count} tópicos")
-    
-    if performance_repo:
-        print(f"\n✅ Eventos de performance adicionados: {len(sample_events)}")
-    
-    print(f"\n🎯 ID do aluno principal para testes: {created_students[0][0]}\n")
-    
-    return created_students[0][0], node_ids
+
+    logger.info("Seeded %s knowledge nodes", len(nodes))
+    return node_ids
 
 
-# Função auxiliar para limpar os repositórios
-def clear_repositories(student_repo, know_repo, performance_repo=None, study_plan_repo=None):
-    """
-    Limpa todos os dados dos repositórios.
-    Útil para resetar o ambiente de testes.
-    """
-    if hasattr(student_repo, 'students'):
+def seed_performance_events(performance_repo, student_id: UUID) -> None:
+    from brain.domain.entities.PerformanceEvent import (
+        PerformanceEvent,
+        PerformanceEventType,
+        PerformanceMetric,
+    )
+
+    base_date = datetime.now() - timedelta(days=7)
+
+    events = [
+        (MATERIA_DIREITO_ADMINISTRATIVO, 1.0),
+        (MATERIA_INFORMATICA, 0.0),
+        (MATERIA_DIREITO_CONSTITUCIONAL, 1.0),
+    ]
+
+    for idx, (topic, value) in enumerate(events, 1):
+        performance_repo.add_event(
+            PerformanceEvent(
+                id=uuid4(),
+                student_id=student_id,
+                event_type=PerformanceEventType.QUIZ,
+                occurred_at=base_date + timedelta(days=idx),
+                topic=topic,
+                metric=PerformanceMetric.ACCURACY,
+                value=value,
+                baseline=0.5,
+            )
+        )
+
+    logger.info("Seeded %s performance events", len(events))
+
+
+# ========================
+# Seed Orquestrador
+# ========================
+
+def seed_repositories_extended(
+    student_repo,
+    know_repo,
+    performance_repo: Optional[object] = None,
+) -> Tuple[UUID, List[UUID]]:
+    student_ids = seed_students(student_repo)
+    node_ids = seed_knowledge_graph(know_repo)
+
+    if performance_repo:
+        seed_performance_events(performance_repo, student_ids[0])
+
+    logger.info("System seeded successfully")
+    return student_ids[0], node_ids
+
+
+# ========================
+# Reset helpers
+# ========================
+
+def clear_repositories(student_repo, know_repo, performance_repo=None):
+    if hasattr(student_repo, "students"):
         student_repo.students.clear()
-    
-    if hasattr(know_repo, 'nodes'):
+
+    if hasattr(know_repo, "nodes"):
         know_repo.nodes.clear()
-    
-    if performance_repo and hasattr(performance_repo, 'events'):
+
+    if performance_repo and hasattr(performance_repo, "events"):
         performance_repo.events.clear()
-    
-    if study_plan_repo and hasattr(study_plan_repo, 'plans'):
-        study_plan_repo.plans.clear()
-    
-    print("🧹 Repositórios limpos com sucesso!\n")
+
+    logger.info("Repositories cleared successfully")
+
+
+# ========================
+# Instâncias Singleton
+# ========================
+
+knowledge_repo_instance = InMemoryKnowledgeRepository()
+error_event_repo_instance = InMemoryErrorEventRepository(
+    knowledge_repo=knowledge_repo_instance
+)
+ai_service_instance = MockAIService(delay_seconds=0)
+
+
+# ========================
+# Providers FastAPI
+# ========================
+
+def get_analyze_student_performance_use_case() -> AnalyzeStudentPerformance:
+    return AnalyzeStudentPerformance(
+        error_event_repository=error_event_repo_instance,
+        ai_service=ai_service_instance,
+    )

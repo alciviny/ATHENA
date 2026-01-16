@@ -107,21 +107,52 @@ class StudyPlanGenerator:
         weak_metrics: List[PerformanceMetric],
     ) -> List[KnowledgeNode]:
         """
-        Seleciona nós do grafo relacionados às métricas fracas.
-        Se não houver métricas fracas, seleciona todo o grafo disponível.
+        Seleciona nós do grafo relacionados às métricas fracas, garantindo
+        que todas as dependências sejam incluídas.
         """
-
         if not weak_metrics:
             return self.knowledge_graph
 
-        selected: List[KnowledgeNode] = []
-
+        primary_targets: List[KnowledgeNode] = []
         for node in self.knowledge_graph:
             if (PerformanceMetric.ACCURACY in weak_metrics and node.is_high_difficulty()) or \
                (PerformanceMetric.RETENTION in weak_metrics and node.is_high_impact()):
-                selected.append(node)
+                primary_targets.append(node)
 
-        return selected
+        # Usar um dicionário para garantir nós únicos e acesso rápido
+        full_plan_nodes: Dict[UUID, KnowledgeNode] = {node.id: node for node in primary_targets}
+
+        # Adicionar todas as dependências recursivamente
+        for node in primary_targets:
+            self._get_all_dependencies(node, full_plan_nodes)
+            
+        # Ordenar o plano de estudo: primeiro as dependências
+        # Esta é uma ordenação topológica simples
+        sorted_nodes = sorted(
+            list(full_plan_nodes.values()),
+            key=lambda n: len(n.dependencies)
+        )
+
+        return sorted_nodes
+
+    def _get_all_dependencies(
+        self,
+        node: KnowledgeNode,
+        plan_nodes: Dict[UUID, KnowledgeNode],
+    ) -> None:
+        """
+        Adiciona recursivamente as dependências de um nó ao plano.
+        """
+        
+        # Criar um mapa do grafo para acesso rápido
+        graph_map = {n.id: n for n in self.knowledge_graph}
+
+        for dep_id in node.dependencies:
+            if dep_id not in plan_nodes:
+                dependency_node = graph_map.get(dep_id)
+                if dependency_node:
+                    plan_nodes[dep_id] = dependency_node
+                    self._get_all_dependencies(dependency_node, plan_nodes)
 
     def _determine_focus(
         self,

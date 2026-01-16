@@ -1,0 +1,5 @@
+{
+  "name": "athena-root",
+  "private": true,
+  "description": "This file was reset to resolve dependency conflicts. Sub-project dependencies should be managed in their respective package.json files."
+}
