@@ -6,6 +6,7 @@ from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.PerformanceEvent import PerformanceEvent
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.entities.StudyPlan import StudyPlan
+from brain.domain.entities.error_event import ErrorEvent
 
 class StudentRepository(ABC):
     @abstractmethod
@@ -25,4 +26,13 @@ class KnowledgeRepository(ABC):
 class StudyPlanRepository(ABC):
     @abstractmethod
     def save(self, study_plan: StudyPlan) -> None:
+        pass
+
+class ErrorEventRepository(ABC):
+    @abstractmethod
+    def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
+        pass
+    
+    @abstractmethod
+    def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
         pass
