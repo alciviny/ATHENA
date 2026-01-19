@@ -1,22 +1,25 @@
 from datetime import datetime, timezone
 from typing import List, Dict
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
-from brain.domain.entities.PerformanceEvent import (
+from brain.domain.entities.performance_event import (
     PerformanceEvent,
     PerformanceMetric,
 )
 from brain.domain.entities.knowledge_node import KnowledgeNode
-from brain.domain.entities.StudyPlan import StudyPlan, StudyFocusLevel
+from brain.domain.entities.study_plan import StudyPlan, StudyFocusLevel
 from brain.domain.policies.adaptive_rule import AdaptiveRule
+
+
+HIGH_DIFFICULTY_THRESHOLD = 0.7
+LOW_STABILITY_THRESHOLD = 10.0
 
 
 class StudyPlanGenerator:
     """
     Domain Service responsável por gerar planos de estudo adaptativos.
-
     Atua como orquestrador entre:
     - Perfil cognitivo
     - Eventos de performance
@@ -107,52 +110,19 @@ class StudyPlanGenerator:
         weak_metrics: List[PerformanceMetric],
     ) -> List[KnowledgeNode]:
         """
-        Seleciona nós do grafo relacionados às métricas fracas, garantindo
-        que todas as dependências sejam incluídas.
+        Seleciona nós do grafo relacionados às métricas fracas.
+        O conceito de dependências foi removido.
         """
         if not weak_metrics:
             return self.knowledge_graph
 
         primary_targets: List[KnowledgeNode] = []
         for node in self.knowledge_graph:
-            if (PerformanceMetric.ACCURACY in weak_metrics and node.is_high_difficulty()) or \
-               (PerformanceMetric.RETENTION in weak_metrics and node.is_high_impact()):
+            if (PerformanceMetric.ACCURACY in weak_metrics and node.difficulty >= HIGH_DIFFICULTY_THRESHOLD) or \
+               (PerformanceMetric.RETENTION in weak_metrics and node.stability < LOW_STABILITY_THRESHOLD):
                 primary_targets.append(node)
-
-        # Usar um dicionário para garantir nós únicos e acesso rápido
-        full_plan_nodes: Dict[UUID, KnowledgeNode] = {node.id: node for node in primary_targets}
-
-        # Adicionar todas as dependências recursivamente
-        for node in primary_targets:
-            self._get_all_dependencies(node, full_plan_nodes)
-            
-        # Ordenar o plano de estudo: primeiro as dependências
-        # Esta é uma ordenação topológica simples
-        sorted_nodes = sorted(
-            list(full_plan_nodes.values()),
-            key=lambda n: len(n.dependencies)
-        )
-
-        return sorted_nodes
-
-    def _get_all_dependencies(
-        self,
-        node: KnowledgeNode,
-        plan_nodes: Dict[UUID, KnowledgeNode],
-    ) -> None:
-        """
-        Adiciona recursivamente as dependências de um nó ao plano.
-        """
         
-        # Criar um mapa do grafo para acesso rápido
-        graph_map = {n.id: n for n in self.knowledge_graph}
-
-        for dep_id in node.dependencies:
-            if dep_id not in plan_nodes:
-                dependency_node = graph_map.get(dep_id)
-                if dependency_node:
-                    plan_nodes[dep_id] = dependency_node
-                    self._get_all_dependencies(dependency_node, plan_nodes)
+        return primary_targets
 
     def _determine_focus(
         self,

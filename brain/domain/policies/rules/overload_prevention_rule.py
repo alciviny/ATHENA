@@ -28,7 +28,7 @@ def overload_prevention_action(ctx: Dict[str, Any]) -> None:
 
     sorted_nodes = sorted(
         target_nodes,
-        key=lambda node: node.weight_in_exam,
+        key=lambda node: node.difficulty,
         reverse=True,
     )
 
@@ -39,7 +39,7 @@ OverloadPreventionRule = AdaptiveRule(
     name="Overload Prevention",
     description=(
         "Evita planos excessivamente longos limitando o número de tópicos "
-        "e priorizando aqueles com maior impacto na prova."
+        "e priorizando aqueles com maior dificuldade."
     ),
     condition=overload_prevention_condition,
     action=overload_prevention_action,

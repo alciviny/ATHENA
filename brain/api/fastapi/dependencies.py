@@ -85,3 +85,25 @@ def get_analyze_performance_use_case(
         student_repo=student_repo,
         knowledge_repo=knowledge_repo,
     )
+
+# =========================================================
+# Domain & Application Services
+# =========================================================
+
+from brain.domain.services.intelligence_engine import IntelligenceEngine
+from brain.application.services.roi_analysis_service import ROIAnalysisService
+from brain.application.services.memory_analysis_service import MemoryAnalysisService
+
+def get_intelligence_engine() -> IntelligenceEngine:
+    return IntelligenceEngine()
+
+def get_roi_analysis_service(
+    engine: IntelligenceEngine = Depends(get_intelligence_engine)
+) -> ROIAnalysisService:
+    return ROIAnalysisService(engine)
+
+def get_memory_analysis_service(
+    engine: IntelligenceEngine = Depends(get_intelligence_engine),
+    knowledge_repo: PostgresKnowledgeRepository = Depends(get_knowledge_repository),
+) -> MemoryAnalysisService:
+    return MemoryAnalysisService(engine, knowledge_repo)

@@ -6,11 +6,14 @@ from brain.domain.entities.StudyPlan import StudyFocusLevel
 from brain.domain.policies.adaptive_rule import AdaptiveRule
 
 
+LOW_STABILITY_THRESHOLD = 10.0
+
+
 def retention_drop_condition(ctx: Dict[str, Any]) -> bool:
     """
     A regra é aplicável se:
     - Retenção está entre as métricas fracas
-    - Existem nós de alto impacto no plano atual
+    - Existem nós de baixa estabilidade (alto impacto de revisão) no plano
     """
     weak_metrics: List[PerformanceMetric] = ctx.get("weak_metrics", [])
     target_nodes: List[KnowledgeNode] = ctx.get("target_nodes", [])
@@ -18,19 +21,19 @@ def retention_drop_condition(ctx: Dict[str, Any]) -> bool:
     if PerformanceMetric.RETENTION not in weak_metrics:
         return False
 
-    return any(node.is_high_impact() for node in target_nodes)
+    return any(node.stability < LOW_STABILITY_THRESHOLD for node in target_nodes)
 
 
 def retention_drop_action(ctx: Dict[str, Any]) -> None:
     """
     Estratégia:
-    - Prioriza apenas nós de alto impacto
+    - Prioriza apenas nós de baixa estabilidade
     - Força o foco do plano para revisão
     """
     target_nodes: List[KnowledgeNode] = ctx.get("target_nodes", [])
 
     critical_nodes = [
-        node for node in target_nodes if node.is_high_impact()
+        node for node in target_nodes if node.stability < LOW_STABILITY_THRESHOLD
     ]
 
     if not critical_nodes:
@@ -41,10 +44,10 @@ def retention_drop_action(ctx: Dict[str, Any]) -> None:
 
 
 RetentionDropRule = AdaptiveRule(
-    name="Retention Drop on High Impact Content",
+    name="Retention Drop on Low Stability Content",
     description=(
-        "Quando há queda de retenção em conteúdos de alto impacto, "
-        "o plano prioriza revisão desses tópicos críticos."
+        "Quando há queda de retenção, o plano prioriza a revisão de "
+        "tópicos com baixa estabilidade de memória (mais fáceis de esquecer)."
     ),
     condition=retention_drop_condition,
     action=retention_drop_action,

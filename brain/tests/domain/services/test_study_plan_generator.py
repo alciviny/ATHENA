@@ -41,8 +41,8 @@ def test_generates_new_content_plan_when_no_weak_metrics():
 def test_low_accuracy_high_difficulty_forces_review_and_filters_nodes():
     generator = StudyPlanGenerator(
         knowledge_graph=[
-            fake_knowledge_node(difficulty=0.8),
-            fake_knowledge_node(difficulty=0.3),
+            fake_knowledge_node(difficulty=8.0),
+            fake_knowledge_node(difficulty=3.0),
         ],
         adaptive_rules=[LowAccuracyHighDifficultyRule],
     )
@@ -62,8 +62,8 @@ def test_low_accuracy_high_difficulty_forces_review_and_filters_nodes():
 def test_retention_drop_prioritizes_high_impact_nodes():
     generator = StudyPlanGenerator(
         knowledge_graph=[
-            fake_knowledge_node(weight_in_exam=0.8),
-            fake_knowledge_node(weight_in_exam=0.3),
+            fake_knowledge_node(stability=5.0),   # Baixa estabilidade
+            fake_knowledge_node(stability=20.0),  # Alta estabilidade
         ],
         adaptive_rules=[RetentionDropRule],
     )
@@ -83,7 +83,7 @@ def test_retention_drop_prioritizes_high_impact_nodes():
 def test_overload_prevention_limits_number_of_nodes():
     generator = StudyPlanGenerator(
         knowledge_graph=[
-            fake_knowledge_node(weight_in_exam=0.8) for _ in range(10)
+            fake_knowledge_node() for _ in range(10)
         ],
         adaptive_rules=[OverloadPreventionRule],
     )

@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from typing import List
 
 from brain.domain.events.base import DomainEvent
-from brain.domain.entities.PerformanceEvent import PerformanceMetric
+from brain.domain.entities.performance_event import PerformanceMetric
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

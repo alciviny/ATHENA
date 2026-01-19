@@ -1,5 +1,5 @@
-from brain.domain.entities.StudyPlan import StudyFocusLevel
-from brain.domain.entities.PerformanceEvent import PerformanceMetric
+from brain.domain.entities.study_plan import StudyFocusLevel
+from brain.domain.entities.performance_event import PerformanceMetric
 
 from brain.domain.policies.rules.low_accuracy_high_difficulty import (
     LowAccuracyHighDifficultyRule,
@@ -9,8 +9,8 @@ from brain.tests.domain.fakes import fake_knowledge_node
 
 
 def test_low_accuracy_high_difficulty_rule_applies_correctly():
-    high_difficulty_node = fake_knowledge_node(difficulty=0.8)
-    low_difficulty_node = fake_knowledge_node(difficulty=0.3)
+    high_difficulty_node = fake_knowledge_node(difficulty=8.0)
+    low_difficulty_node = fake_knowledge_node(difficulty=3.0)
 
     context = {
         "weak_metrics": [PerformanceMetric.ACCURACY],

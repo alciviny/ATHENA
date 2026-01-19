@@ -19,6 +19,10 @@ class PerformanceRepository(ABC):
     def get_recent_events(self, student_id: UUID, limit: int = 50) -> List[PerformanceEvent]:
         pass
 
+    @abstractmethod
+    def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
+        pass
+
 class KnowledgeRepository(ABC):
     @abstractmethod
     def get_full_graph(self) -> List[KnowledgeNode]:
@@ -26,6 +30,10 @@ class KnowledgeRepository(ABC):
 
     @abstractmethod
     def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
+        pass
+
+    @abstractmethod
+    def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
         pass
 
 class StudyPlanRepository(ABC):

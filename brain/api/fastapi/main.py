@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from brain.api.fastapi.routes import study_routes, performance_routes
+from brain.api.fastapi.routes import study_routes, performance_routes, roi_routes, memory_routes
 
 
 # =========================================================
@@ -49,6 +49,16 @@ app.include_router(
     performance_routes.router,
     prefix="/performance",
     tags=["Performance"],
+)
+
+app.include_router(
+    roi_routes.router,
+    tags=["ROI"],
+)
+
+app.include_router(
+    memory_routes.router,
+    tags=["Memory"],
 )
 
 

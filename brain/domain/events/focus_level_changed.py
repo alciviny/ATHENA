@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from brain.domain.events.base import DomainEvent
-from brain.domain.entities.StudyPlan import StudyFocusLevel
+from brain.domain.entities.study_plan import StudyFocusLevel
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
