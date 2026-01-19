@@ -1,5 +1,6 @@
 from uuid import UUID
 from typing import List
+from datetime import datetime, timezone
 
 from brain.domain.services.study_plan_generator import StudyPlanGenerator
 from brain.domain.policies.adaptive_rule import AdaptiveRule
@@ -43,11 +44,31 @@ class GenerateStudyPlanUseCase:
         cognitive_profile = student.cognitive_profile 
         
         recent_events = self.performance_repo.get_recent_events(student_id)
-        full_graph = self.knowledge_repo.get_full_graph()
+
+        # Retrieve overdue nodes
+        current_time = datetime.now(timezone.utc)
+        overdue_nodes = self.knowledge_repo.get_overdue_nodes(current_time)
+
+        # Retrieve all nodes to be used by the generator
+        # The generator will prioritize overdue nodes
+        all_nodes = self.knowledge_repo.get_full_graph()
+
+        # Combine and prioritize overdue nodes
+        # Ensure unique nodes and overdue nodes are at the top
+        prioritized_nodes = []
+        overdue_node_ids = {node.id for node in overdue_nodes}
+
+        # Add overdue nodes first
+        prioritized_nodes.extend(overdue_nodes)
+
+        # Add remaining nodes, ensuring no duplicates
+        for node in all_nodes:
+            if node.id not in overdue_node_ids:
+                prioritized_nodes.append(node)
 
         # 2. Instanciar o Domain Service (O Cérebro)
         generator = StudyPlanGenerator(
-            knowledge_graph=full_graph,
+            knowledge_graph=prioritized_nodes, # Use prioritized nodes
             adaptive_rules=self.adaptive_rules
         )
 
