@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.PerformanceEvent import PerformanceEvent
@@ -21,6 +22,10 @@ class PerformanceRepository(ABC):
 class KnowledgeRepository(ABC):
     @abstractmethod
     def get_full_graph(self) -> List[KnowledgeNode]:
+        pass
+
+    @abstractmethod
+    def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
         pass
 
 class StudyPlanRepository(ABC):

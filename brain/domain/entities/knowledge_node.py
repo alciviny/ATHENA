@@ -1,69 +1,66 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import List
+from datetime import datetime, timezone, timedelta
+from enum import IntEnum
 from uuid import UUID
+from typing import Optional
 
 
-def _clamp(value: float, min_value: float = 0.0, max_value: float = 1.0) -> float:
+class ReviewGrade(IntEnum):
     """
-    Garante que um valor esteja dentro de um intervalo seguro.
+    Avaliação cognitiva da recuperação da memória.
+    Os valores são intencionais e fazem parte da matemática.
     """
-    return max(min_value, min(max_value, value))
+    AGAIN = 1   # Falha total de recuperação
+    HARD = 2    # Recuperação com alto esforço
+    GOOD = 3    # Recuperação normal
+    EASY = 4    # Recuperação imediato
 
 
 @dataclass
 class KnowledgeNode:
     """
-    Nó do Grafo de Conhecimento.
-
-    Representa um tópico, assunto ou conceito cobrado em prova,
-    incluindo sua importância, dificuldade percebida e dependências.
+    Representa uma unidade mínima de conhecimento com estado mnemônico.
+    Inspirado no modelo FSRS.
     """
+
     id: UUID
-    name: str
-    subject: str
+    title: str
 
-    # Métricas normalizadas (0.0 - 1.0)
-    weight_in_exam: float      # impacto na nota final
-    difficulty: float          # dificuldade percebida pelo aluno médio
+    # --- Estado de Memória ---
+    stability: float = 0.0      # Dias até R ≈ 0.9
+    difficulty: float = 5.0     # [1.0, 10.0]
+    reps: int = 0               # Total de revisões
+    lapses: int = 0             # Quantidade de falhas completas
+    last_review: Optional[datetime] = None
+    next_review: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
-    # Dependências (outros KnowledgeNodes)
-    dependencies: List[UUID] = field(default_factory=list)
+    # -------------------------
+    # Consultas de Domínio
+    # -------------------------
 
-    def __post_init__(self) -> None:
+    def is_due(self, now: Optional[datetime] = None) -> bool:
         """
-        Normaliza automaticamente os valores críticos.
+        Verifica se o nó está elegível para revisão.
         """
-        self.weight_in_exam = _clamp(self.weight_in_exam)
-        self.difficulty = _clamp(self.difficulty)
+        now = now or datetime.now(timezone.utc)
+        return now >= self.next_review
 
-    # ==============================
-    # Domain Rules
-    # ==============================
+    def retention_interval(self) -> timedelta:
+        """
+        Intervalo atual de retenção estimado.
+        """
+        return timedelta(days=max(self.stability, 0))
 
-    def is_high_impact(self, threshold: float = 0.7) -> bool:
+    def validate(self) -> None:
         """
-        Indica se o nó possui alto impacto na prova.
+        Garante invariantes do domínio.
         """
-        return self.weight_in_exam >= threshold
+        if not 1.0 <= self.difficulty <= 10.0:
+            raise ValueError("Difficulty must be between 1.0 and 10.0")
 
-    def is_high_difficulty(self, threshold: float = 0.7) -> bool:
-        """
-        Indica se o nó é considerado difícil.
-        """
-        return self.difficulty >= threshold
-
-    def is_foundational(self) -> bool:
-        """
-        Um nó fundacional não depende de outros conhecimentos.
-        """
-        return len(self.dependencies) == 0
-
-    # ==============================
-    # Graph Semantics
-    # ==============================
-
-    def can_be_studied_after(self, completed_nodes: List[UUID]) -> bool:
-        """
-        Verifica se todas as dependências deste nó já foram concluídas.
-        """
-        return all(dep in completed_nodes for dep in self.dependencies)
+        if self.stability < 0:
+            raise ValueError("Stability cannot be negative")

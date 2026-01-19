@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Table, JSON, Integer
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Table, JSON, Integer, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -25,7 +25,13 @@ class KnowledgeNodeModel(Base):
     name = Column(String, nullable=False)         #
     subject = Column(String, nullable=False)      #
     weight_in_exam = Column(Float, nullable=False) #
-    difficulty = Column(Float, nullable=False)     #
+    difficulty = Column(Float, default=5.0)     #
+    # FSRS fields
+    stability = Column(Float, default=0.0)
+    reps = Column(Integer, default=0)
+    lapses = Column(Integer, default=0)
+    last_review = Column(DateTime(timezone=True), nullable=True)
+    next_review = Column(DateTime(timezone=True), default=func.now())
     
     dependencies = relationship(
         "KnowledgeNodeModel",
@@ -54,3 +60,12 @@ class StudyPlanModel(Base):
     knowledge_nodes = Column(JSON, nullable=False) # Lista de UUIDs
     estimated_duration_minutes = Column(Integer, default=0) #
     focus_level = Column(String, nullable=False) #
+
+class ErrorEventModel(Base):
+    __tablename__ = "error_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    knowledge_node_id = Column(UUID(as_uuid=True), ForeignKey("knowledge_nodes.id"), nullable=False)
+    error_type = Column(String, nullable=False)
+    occurred_at = Column(DateTime(timezone=True), nullable=False)
+    severity = Column(Float, nullable=False)
