@@ -85,19 +85,19 @@ def fake_performance_event(
 def fake_knowledge_node(
     *,
     node_id: UUID | None = None,
-    name: str = "Test Node",
-    subject: str = "Math",
-    difficulty: float = 0.3,
-    weight_in_exam: float = 0.3,
-    dependencies: List[UUID] | None = None,
+    title: str = "Test Node",
+    stability: float = 0.0,
+    difficulty: float = 5.0,
+    **kwargs,
 ) -> KnowledgeNode:
+    # O **kwargs ignora os parâmetros antigos que alguns testes podem
+    # ainda estar passando, como `name`.
+    # Isso evita quebrar testes não relacionados.
     return KnowledgeNode(
         id=node_id or uuid4(),
-        name=name,
-        subject=subject,
+        title=title,
+        stability=stability,
         difficulty=difficulty,
-        weight_in_exam=weight_in_exam,
-        dependencies=dependencies or [],
     )
 
 
@@ -106,11 +106,8 @@ def fake_knowledge_node(
 # =========================
 
 def high_difficulty_node(**kwargs) -> KnowledgeNode:
-    return fake_knowledge_node(difficulty=0.8, **kwargs)
-
-
-def high_impact_node(**kwargs) -> KnowledgeNode:
-    return fake_knowledge_node(weight_in_exam=0.8, **kwargs)
+    """Cria um nó com dificuldade alta (dentro da faixa válida)."""
+    return fake_knowledge_node(difficulty=8.0, **kwargs)
 
 
 def weak_accuracy_event() -> PerformanceEvent:

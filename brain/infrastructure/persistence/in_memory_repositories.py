@@ -51,6 +51,16 @@ class InMemoryPerformanceRepository(PerformanceRepository):
         if student_events and hasattr(student_events[0], 'timestamp'):
             student_events.sort(key=lambda e: e.timestamp)
         return student_events[-limit:] if len(student_events) > limit else student_events
+
+    def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
+        """
+        Get the complete performance history for a student.
+        """
+        student_events = [e for e in self.events if e.student_id == student_id]
+        # Sort by timestamp if available, otherwise maintain insertion order
+        if student_events and hasattr(student_events[0], 'timestamp'):
+            student_events.sort(key=lambda e: e.timestamp)
+        return student_events
     
     def add_event(self, event: PerformanceEvent) -> None:
         self.events.append(event)
@@ -80,6 +90,13 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
         """Get all knowledge nodes in the graph."""
         return self.nodes.copy()  # Return a copy to prevent external modifications
     
+    def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
+        """Get all nodes that are scheduled for review."""
+        return [
+            node for node in self.nodes 
+            if hasattr(node, 'next_review_at') and node.next_review_at and node.next_review_at <= current_time
+        ]
+
     def set_graph(self, nodes: List[KnowledgeNode]) -> None:
         """Replace the entire knowledge graph."""
         self.nodes = nodes.copy()
@@ -93,6 +110,13 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
     def get_node_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
         """Get a specific knowledge node by its ID."""
         return self._nodes_by_id.get(node_id)
+    
+    def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
+        """Get a specific knowledge node by its title."""
+        for node in self.nodes:
+            if node.title == title:
+                return node
+        return None
         
     def add_node(self, node: KnowledgeNode) -> None:
         """Add a single knowledge node to the graph."""

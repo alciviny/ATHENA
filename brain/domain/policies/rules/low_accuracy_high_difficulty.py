@@ -6,6 +6,9 @@ from brain.domain.entities.StudyPlan import StudyFocusLevel
 from brain.domain.policies.adaptive_rule import AdaptiveRule
 
 
+HIGH_DIFFICULTY_THRESHOLD = 7.0
+
+
 def low_accuracy_high_difficulty_condition(ctx: Dict[str, Any]) -> bool:
     """
     A regra é aplicável se:
@@ -18,7 +21,7 @@ def low_accuracy_high_difficulty_condition(ctx: Dict[str, Any]) -> bool:
     if PerformanceMetric.ACCURACY not in weak_metrics:
         return False
 
-    return any(node.is_high_difficulty() for node in target_nodes)
+    return any(node.difficulty >= HIGH_DIFFICULTY_THRESHOLD for node in target_nodes)
 
 
 def low_accuracy_high_difficulty_action(ctx: Dict[str, Any]) -> None:
@@ -30,7 +33,7 @@ def low_accuracy_high_difficulty_action(ctx: Dict[str, Any]) -> None:
     target_nodes: List[KnowledgeNode] = ctx.get("target_nodes", [])
 
     critical_nodes = [
-        node for node in target_nodes if node.is_high_difficulty()
+        node for node in target_nodes if node.difficulty >= HIGH_DIFFICULTY_THRESHOLD
     ]
 
     if not critical_nodes:
