@@ -1,10 +1,10 @@
 from uuid import UUID
 from brain.domain.entities.knowledge_node import ReviewGrade
 from brain.domain.policies.srs_policy import SRSPolicy
-from brain.application.ports.repositories import KnowledgeNodeRepository
+from brain.application.ports.repositories import KnowledgeRepository
 
 class RecordReviewUseCase:
-    def __init__(self, repository: KnowledgeNodeRepository):
+    def __init__(self, repository: KnowledgeRepository):
         self.repository = repository
         self.policy = SRSPolicy()
 

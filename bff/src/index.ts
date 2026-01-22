@@ -1,10 +1,15 @@
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import studyRouter from './modules/study/study.router';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 // ================= Middlewares =================
+
+// Servir arquivos estáticos do diretório 'frontend'
+// A requisição para '/' vai servir 'frontend/index.html'
+app.use(express.static(path.join(__dirname, '../../frontend')));
 
 // Parsing de JSON com limite (evita payload gigante)
 app.use(express.json({ limit: '1mb' }));

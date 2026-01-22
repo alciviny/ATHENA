@@ -10,7 +10,12 @@ from sqlalchemy.orm import sessionmaker, Session
 # Configuração da DB
 # ----------------------
 # Para desenvolvimento, usar SQLite
-SQLALCHEMY_DATABASE_URL = "sqlite:///./athena.db"
+# Constrói o caminho absoluto para o arquivo do banco de dados na raiz do projeto
+# O __file__ aponta para athena/brain/infrastructure/persistence/database.py
+# Subimos três níveis para chegar na raiz 'athena'
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+db_path = os.path.join(project_root, "athena.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
 
 # Configuração original para PostgreSQL (comentada)
 # POSTGRES_USER = os.getenv("POSTGRES_USER", "utilizador")
@@ -36,7 +41,6 @@ Base = declarative_base()
 # ----------------------
 # Context manager da sessão
 # ----------------------
-@contextmanager
 def get_db() -> Generator[Session, None, None]:
     """
     Fornece uma sessão de banco de dados SQLAlchemy.
@@ -45,7 +49,6 @@ def get_db() -> Generator[Session, None, None]:
     db: Session = SessionLocal()
     try:
         yield db
-        db.commit()  # garante commit automático ao sair
     except Exception:
         db.rollback()  # rollback em caso de erro
         raise

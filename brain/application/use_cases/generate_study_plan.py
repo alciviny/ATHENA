@@ -8,13 +8,19 @@ from brain.application.ports.repositories import (
     StudentRepository,
     PerformanceRepository,
     KnowledgeRepository,
-    StudyPlanRepository
+    StudyPlanRepository,
+    CognitiveProfileRepository,
 )
 from brain.application.dto.study_plan_dto import StudyPlanOutputDTO
 
 
 class StudentNotFoundError(Exception):
     """Exceção lançada quando um estudante não é encontrado no repositório."""
+    pass
+
+
+class CognitiveProfileNotFoundError(Exception):
+    """Exceção para quando o perfil cognitivo do estudante não é encontrado."""
     pass
 
 
@@ -25,12 +31,14 @@ class GenerateStudyPlanUseCase:
         performance_repo: PerformanceRepository,
         knowledge_repo: KnowledgeRepository,
         study_plan_repo: StudyPlanRepository,
+        cognitive_profile_repo: CognitiveProfileRepository,
         adaptive_rules: List[AdaptiveRule]
     ):
         self.student_repo = student_repo
         self.performance_repo = performance_repo
         self.knowledge_repo = knowledge_repo
         self.study_plan_repo = study_plan_repo
+        self.cognitive_profile_repo = cognitive_profile_repo
         self.adaptive_rules = adaptive_rules
 
     def execute(self, student_id: UUID) -> StudyPlanOutputDTO:
@@ -39,9 +47,11 @@ class GenerateStudyPlanUseCase:
         if not student:
             raise StudentNotFoundError(f"Estudante com ID {student_id} não encontrado.")
 
-        # Aqui assumimos que o perfil cognitivo vem com o estudante ou de repositório próprio
-        # Para este exemplo, vamos extrair do perfil do estudante
-        cognitive_profile = student.cognitive_profile 
+        cognitive_profile = self.cognitive_profile_repo.get_by_student_id(student.id)
+        if not cognitive_profile:
+            raise CognitiveProfileNotFoundError(
+                f"Perfil cognitivo para o estudante com ID {student_id} não encontrado."
+            )
         
         recent_events = self.performance_repo.get_recent_events(student_id)
 

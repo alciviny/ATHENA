@@ -49,7 +49,7 @@ async def record_performance(
 )
 async def analyze_performance(
     student_id: UUID = Path(..., description="UUID do estudante"),
-    subject: str = Query(..., example="Matemática"),
+    subject: str = Query(..., examples=["Matemática"]),
     use_case: AnalyzeStudentPerformance = Depends(get_analyze_student_performance_use_case),
 ):
     analysis = use_case.execute(student_id=student_id, subject=subject)

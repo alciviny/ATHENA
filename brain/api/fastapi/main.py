@@ -11,17 +11,17 @@ from brain.api.fastapi.routes import study_routes, performance_routes, roi_route
 # Application Lifespan
 # =========================================================
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Ponto único de inicialização e finalização da aplicação.
-    Ideal para:
-    - conexões externas
-    - warmup de cache
-    - verificação de dependências
-    """
-    yield
-    # shutdown hooks aqui se necessário
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     """
+#     Ponto único de inicialização e finalização da aplicação.
+#     Ideal para:
+#     - conexões externas
+#     - warmup de cache
+#     - verificação de dependências
+#     """
+#     yield
+#     # shutdown hooks aqui se necessário
 
 
 # =========================================================
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Athena Brain - Intelligent Adaptive Engine",
     version="1.0.0",
-    lifespan=lifespan,
+    # lifespan=lifespan,
 )
 
 
