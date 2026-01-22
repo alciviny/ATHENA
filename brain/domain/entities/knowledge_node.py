@@ -20,47 +20,27 @@ class ReviewGrade(IntEnum):
 
 @dataclass
 class KnowledgeNode:
-    """
-    Representa uma unidade mínima de conhecimento com estado mnemônico.
-    Inspirado no modelo FSRS.
-    """
-
     id: UUID
     title: str
-
-    # --- Estado de Memória ---
-    stability: float = 0.0      # Dias até R ≈ 0.9
-    difficulty: float = 5.0     # [1.0, 10.0]
-    reps: int = 0               # Total de revisões
-    lapses: int = 0             # Quantidade de falhas completas
+    stability: float = 0.0
+    difficulty: float = 5.0
+    reps: int = 0
+    lapses: int = 0
+    weight: float = 1.0  # Fator de prioridade no algoritmo de seleção
     last_review: Optional[datetime] = None
-    next_review: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    next_review: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    # -------------------------
-    # Consultas de Domínio
-    # -------------------------
+    def apply_penalty(self, factor: float = 1.5):
+        """Aumenta a prioridade do nó quando detectada fraqueza cognitiva."""
+        self.weight *= factor
+        # Força uma revisão mais próxima se a dificuldade for alta
+        if self.difficulty > 7.0:
+            self.stability *= 0.8 
 
-    def is_due(self, now: Optional[datetime] = None) -> bool:
-        """
-        Verifica se o nó está elegível para revisão.
-        """
-        now = now or datetime.now(timezone.utc)
-        return now >= self.next_review
-
-    def retention_interval(self) -> timedelta:
-        """
-        Intervalo atual de retenção estimado.
-        """
-        return timedelta(days=max(self.stability, 0))
+    def record_success(self):
+        """Normaliza o peso conforme o aluno domina o assunto."""
+        self.weight = max(1.0, self.weight * 0.9)
 
     def validate(self) -> None:
-        """
-        Garante invariantes do domínio.
-        """
         if not 1.0 <= self.difficulty <= 10.0:
             raise ValueError("Difficulty must be between 1.0 and 10.0")
-
-        if self.stability < 0:
-            raise ValueError("Stability cannot be negative")
