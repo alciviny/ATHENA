@@ -9,9 +9,10 @@ from brain.infrastructure.persistence.postgres_repositories import (
     PostgresStudyPlanRepository,
     PostgresKnowledgeRepository,
     PostgresPerformanceRepository,
+    PostgresCognitiveProfileRepository,
 )
 
-from brain.application.use_cases.generate_study_plan import GenerateStudyPlan
+from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.analyze_student_performance import AnalyzeStudentPerformance
 
 
@@ -59,23 +60,34 @@ def get_performance_repository(
     return PostgresPerformanceRepository(db)
 
 
+def get_cognitive_profile_repository(
+    db: Session = Depends(get_db),
+) -> PostgresCognitiveProfileRepository:
+    return PostgresCognitiveProfileRepository(db)
+
+
 # =========================================================
 # Use Cases
 # =========================================================
 
 def get_generate_study_plan_use_case(
-    student_repo = Depends(get_student_repository),
-    study_plan_repo = Depends(get_study_plan_repository),
-    knowledge_repo = Depends(get_knowledge_repository),
-) -> GenerateStudyPlan:
-    return GenerateStudyPlan(
+    student_repo: PostgresStudentRepository = Depends(get_student_repository),
+    performance_repo: PostgresPerformanceRepository = Depends(get_performance_repository),
+    knowledge_repo: PostgresKnowledgeRepository = Depends(get_knowledge_repository),
+    study_plan_repo: PostgresStudyPlanRepository = Depends(get_study_plan_repository),
+    cognitive_profile_repo: PostgresCognitiveProfileRepository = Depends(get_cognitive_profile_repository),
+) -> GenerateStudyPlanUseCase:
+    return GenerateStudyPlanUseCase(
         student_repo=student_repo,
-        study_plan_repo=study_plan_repo,
+        performance_repo=performance_repo,
         knowledge_repo=knowledge_repo,
+        study_plan_repo=study_plan_repo,
+        cognitive_profile_repo=cognitive_profile_repo,
+        adaptive_rules=[],  # TODO: Inject real rules
     )
 
 
-def get_analyze_performance_use_case(
+def get_analyze_student_performance_use_case(
     performance_repo = Depends(get_performance_repository),
     student_repo = Depends(get_student_repository),
     knowledge_repo = Depends(get_knowledge_repository),

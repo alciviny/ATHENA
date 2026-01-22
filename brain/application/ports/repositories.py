@@ -36,9 +36,26 @@ class KnowledgeRepository(ABC):
     def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
         pass
 
+    @abstractmethod
+    def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
+        pass
+    
+    @abstractmethod
+    def update(self, node: KnowledgeNode) -> None:
+        pass
+
 class StudyPlanRepository(ABC):
     @abstractmethod
     def save(self, study_plan: StudyPlan) -> None:
+        pass
+
+class CognitiveProfileRepository(ABC):
+    @abstractmethod
+    def get_by_student_id(self, student_id: UUID) -> Optional[CognitiveProfile]:
+        pass
+        
+    @abstractmethod
+    def save(self, profile: CognitiveProfile) -> None:
         pass
 
 class ErrorEventRepository(ABC):

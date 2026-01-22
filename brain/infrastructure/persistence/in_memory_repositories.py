@@ -11,6 +11,7 @@ from brain.application.ports.repositories import (
     PerformanceRepository,
     KnowledgeRepository,
     StudyPlanRepository,
+    CognitiveProfileRepository,
     ErrorEventRepository
 )
 
@@ -107,7 +108,7 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
                 self._nodes_by_subject[node.subject] = []
             self._nodes_by_subject[node.subject].append(node)
     
-    def get_node_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
+    def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
         """Get a specific knowledge node by its ID."""
         return self._nodes_by_id.get(node_id)
     
@@ -127,7 +128,7 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
                 self._nodes_by_subject[node.subject] = []
             self._nodes_by_subject[node.subject].append(node)
 
-    def update_node(self, node: KnowledgeNode) -> bool:
+    def update(self, node: KnowledgeNode) -> bool:
         """Update an existing knowledge node."""
         if node.id in self._nodes_by_id:
             # Find and update in the main list
@@ -147,6 +148,16 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
 
     def get_nodes_by_subject(self, subject: str) -> List[KnowledgeNode]:
         return self._nodes_by_subject.get(subject, [])
+
+class InMemoryCognitiveProfileRepository(CognitiveProfileRepository):
+    def __init__(self):
+        self._profiles: Dict[UUID, CognitiveProfile] = {}
+
+    def get_by_student_id(self, student_id: UUID) -> Optional[CognitiveProfile]:
+        return self._profiles.get(student_id)
+
+    def save(self, profile: CognitiveProfile) -> None:
+        self._profiles[profile.student_id] = profile
 
 
 class InMemoryErrorEventRepository(ErrorEventRepository):
@@ -168,6 +179,7 @@ class InMemoryErrorEventRepository(ErrorEventRepository):
         
     def add_error(self, error: ErrorEvent):
         self.errors.append(error)
+
 
 
 class InMemoryStudyPlanRepository(StudyPlanRepository):

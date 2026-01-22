@@ -35,6 +35,10 @@ brainApi.interceptors.response.use(
       throw new Error('Erro interno no Brain.');
     }
 
+    if (status === 422) {
+      throw new Error('Dados inválidos enviados ao Brain.');
+    }
+
     if (status === 404) {
       throw new Error('Recurso solicitado não encontrado no Brain.');
     }

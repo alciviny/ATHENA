@@ -19,6 +19,15 @@ class StudentModel(Base):
     goal = Column(String, nullable=False)  # Armazena o valor do StudentGoal Enum
     cognitive_profile_id = Column(UUID(as_uuid=True), nullable=True) #
 
+class CognitiveProfileModel(Base):
+    __tablename__ = "cognitive_profiles"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    retention_rate = Column(Float, nullable=False, default=0.7)
+    learning_speed = Column(Float, nullable=False, default=0.5)
+    stress_sensitivity = Column(Float, nullable=False, default=0.3)
+    error_patterns = Column(JSON, nullable=False, default={})
+
 class KnowledgeNodeModel(Base):
     __tablename__ = "knowledge_nodes"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

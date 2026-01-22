@@ -9,11 +9,12 @@ from brain.infrastructure.persistence.postgres_repositories import (
     PostgresStudentRepository, 
     PostgresPerformanceRepository, 
     PostgresKnowledgeRepository, 
-    PostgresStudyPlanRepository
+    PostgresStudyPlanRepository,
+    PostgresCognitiveProfileRepository
 )
 from brain.domain.policies.rules.retention_drop_rule import RetentionDropRule
 from brain.domain.policies.rules.low_accuracy_high_difficulty import LowAccuracyHighDifficultyRule
-from brain.api.fastapi.dependencies import get_node_repository
+from brain.api.fastapi.dependencies import get_knowledge_repository
 
 
 router = APIRouter()
@@ -26,22 +27,26 @@ async def generate_plan(student_id: UUID, db: Session = Depends(get_db)):
     perf_repo = PostgresPerformanceRepository(db)
     know_repo = PostgresKnowledgeRepository(db)
     plan_repo = PostgresStudyPlanRepository(db)
+    cognitive_repo = PostgresCognitiveProfileRepository(db)
 
     use_case = GenerateStudyPlanUseCase(
         student_repo=student_repo,
         performance_repo=perf_repo,
         knowledge_repo=know_repo,
         study_plan_repo=plan_repo,
-        adaptive_rules=[RetentionDropRule(), LowAccuracyHighDifficultyRule()]
+        cognitive_profile_repo=cognitive_repo,
+        adaptive_rules=[RetentionDropRule, LowAccuracyHighDifficultyRule]
     )
     
-    return use_case.execute(student_id)
+    study_plan = use_case.execute(student_id)
+    db.commit()
+    return study_plan
 
 @router.post("/review/{node_id}")
 async def record_review(
     node_id: UUID, 
     review_data: dict, # Contém {"grade": 1..4}
-    repo = Depends(get_node_repository)
+    repo = Depends(get_knowledge_repository)
 ):
     use_case = RecordReviewUseCase(repo)
     updated_node = await use_case.execute(node_id, review_data["grade"])
