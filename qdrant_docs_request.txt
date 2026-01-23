@@ -1,0 +1,3 @@
+I am waiting for you to provide the official `qdrant-client` Python documentation, specifically for `AsyncQdrantClient` and how to perform recommendation queries. This information is crucial for me to resolve the current `AttributeError` in the tests.
+
+Please find the documentation (e.g., a link to the official Qdrant website or GitHub repository, or copy-pasted content) and provide it to me.

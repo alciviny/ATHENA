@@ -44,6 +44,10 @@ class KnowledgeRepository(ABC):
     def update(self, node: KnowledgeNode) -> None:
         pass
 
+    @abstractmethod
+    def add(self, node: KnowledgeNode) -> None:
+        pass
+
 class StudyPlanRepository(ABC):
     @abstractmethod
     def save(self, study_plan: StudyPlan) -> None:

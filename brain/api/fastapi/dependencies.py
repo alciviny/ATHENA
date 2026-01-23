@@ -162,7 +162,7 @@ def get_record_review_use_case(
     Provider for the Record Review use case.
     """
     propagator = SemanticPropagator(
-        knowledge_repository=node_repo,
+        node_repository=node_repo,
         vector_repository=vector_repo,
     )
     return RecordReviewUseCase(

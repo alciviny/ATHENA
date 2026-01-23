@@ -1,9 +1,12 @@
+import logging
 from uuid import UUID
 from typing import Iterable
 from brain.application.ports.repositories import (
     KnowledgeRepository,
     KnowledgeVectorRepository,
 )
+
+logger = logging.getLogger(__name__)
 
 class SemanticPropagator:
     """
@@ -37,10 +40,18 @@ class SemanticPropagator:
             neighborhood_size: Quantidade de vizinhos considerados.
         """
 
-        neighbor_ids = await self._vector_repo.find_semantically_related(
-            origin_node_id,
-            limit=neighborhood_size,
-        )
+        try:
+            neighbor_ids = await self._vector_repo.find_semantically_related(
+                origin_node_id,
+                limit=neighborhood_size,
+            )
+        except Exception:
+            logger.error(
+                "Falha ao buscar nós semanticamente relacionados no Qdrant.",
+                exc_info=True,
+                extra={"origin_node_id": str(origin_node_id)},
+            )
+            return # domínio já reagiu, siga em frente
 
         await self._apply_penalty_to_neighbors(
             origin_node_id,
@@ -59,9 +70,9 @@ class SemanticPropagator:
             if neighbor_id == origin_node_id:
                 continue
 
-            neighbor_node = await self._node_repo.get_by_id(neighbor_id)
+            neighbor_node = self._node_repo.get_by_id(neighbor_id)
             if not neighbor_node:
                 continue
 
             neighbor_node.apply_penalty(factor=factor)
-            await self._node_repo.update(neighbor_node)
+            self._node_repo.update(neighbor_node)

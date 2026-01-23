@@ -28,8 +28,8 @@ class RecordReviewUseCase:
         grade: ReviewGrade,
     ):
         # 1. Carregar estado
-        node = await self._node_repo.get_by_id(node_id)
-        history = await self._perf_repo.get_history(student_id, node_id)
+        node = self._node_repo.get_by_id(node_id)
+        history = self._perf_repo.get_history_for_student(student_id)
 
         # 2. Atualizar performance básica
         updated_node = self._engine.update_node_state(
@@ -39,7 +39,7 @@ class RecordReviewUseCase:
         )
 
         # 3. Decisão cognitiva
-        if self._engine.should_trigger_priority_boost(updated_node, history):
+        if self._engine.should_trigger_priority_boost(updated_node, history, grade):
             updated_node.apply_penalty(factor=2.0)
 
             # Propagação semântica (efeito colateral consciente)
@@ -49,5 +49,5 @@ class RecordReviewUseCase:
             updated_node.record_success()
 
         # 4. Persistência
-        await self._node_repo.update(updated_node)
+        self._node_repo.update(updated_node)
         return updated_node

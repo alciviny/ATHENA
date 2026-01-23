@@ -1,6 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 import logging
+from importlib.metadata import version
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -24,6 +25,8 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
         collection_name: str = "athena_knowledge",
         timeout: float = 5.0,
     ) -> None:
+        qdrant_client_version = version('qdrant-client')
+        logger.info(f"Qdrant client version: {qdrant_client_version}")
         self._collection = collection_name
         self._client = AsyncQdrantClient(
             url=url,
@@ -56,7 +59,7 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
             )
 
             return [
-                UUID(str(hit.id))
+                UUID(hit.id)
                 for hit in results
                 if hit.id is not None
             ]
