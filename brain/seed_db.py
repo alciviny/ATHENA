@@ -1,4 +1,12 @@
+import sys
+import os
 import uuid
+
+# Adiciona a raiz do projeto ao PYTHONPATH
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from sqlalchemy.orm import Session
 from brain.infrastructure.persistence.database import SessionLocal, engine, Base
 from brain.infrastructure.persistence.models import StudentModel, CognitiveProfileModel

@@ -112,11 +112,31 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
 
     # Added to satisfy RecordReviewUseCase
     def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
-        pass
+        model = self.db.query(KnowledgeNodeModel).filter(KnowledgeNodeModel.id == node_id).first()
+        if model:
+            return KnowledgeNode(
+                id=model.id,
+                title=model.name,
+                stability=model.stability,
+                difficulty=model.difficulty,
+                reps=model.reps,
+                lapses=model.lapses,
+                last_review=model.last_review,
+                next_review=model.next_review,
+            )
+        return None
     
     # Added to satisfy RecordReviewUseCase
     def update(self, node: KnowledgeNode) -> None:
-        pass
+        model = self.db.query(KnowledgeNodeModel).filter(KnowledgeNodeModel.id == node.id).first()
+        if model:
+            model.stability = node.stability
+            model.difficulty = node.difficulty
+            model.reps = node.reps
+            model.lapses = node.lapses
+            model.last_review = node.last_review
+            model.next_review = node.next_review
+            self.db.flush()
 
 
 class PostgresStudyPlanRepository(ports.StudyPlanRepository):
@@ -124,8 +144,16 @@ class PostgresStudyPlanRepository(ports.StudyPlanRepository):
         self.db = db
 
     def save(self, study_plan: StudyPlan) -> None:
-        print(f"--- FAKE: Saving study plan {study_plan.id} to Postgres ---")
-        pass
+        model = StudyPlanModel(
+            id=study_plan.id,
+            student_id=study_plan.student_id,
+            created_at=study_plan.created_at,
+            knowledge_nodes=[str(node_id) for node_id in study_plan.knowledge_nodes],
+            estimated_duration_minutes=study_plan.estimated_duration_minutes,
+            focus_level=study_plan.focus_level.value
+        )
+        self.db.add(model)
+        self.db.flush()
 
 class PostgresCognitiveProfileRepository(ports.CognitiveProfileRepository):
     def __init__(self, db: Session):

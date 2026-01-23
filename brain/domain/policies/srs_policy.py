@@ -17,21 +17,27 @@ class SRSPolicy:
     # Constantes de Modelo
     # -------------------------
 
-    _INITIAL_STABILITY = {
-        ReviewGrade.AGAIN: 0.5,
-        ReviewGrade.HARD: 1.5,
-        ReviewGrade.GOOD: 3.5,
-        ReviewGrade.EASY: 7.0,
-    }
 
-    _STABILITY_GROWTH = 1.4
+
     _MIN_STABILITY = 0.5
+
+    # FSRS-v4 Default Parameters (example set, usually optimized via ML)
+    # These map to w_0, w_1, ..., w_16 in typical FSRS equations.
+    # w[0]..w[3] for initial stability
+    # w[4]..w[16] for calculating new stability
+    _FSRS_WEIGHTS = [
+        0.4, 0.6, 2.4, 5.8,      # Initial S (0-3)
+        4.93, 0.94, 0.86, 0.01, # Factor for S (4-7)
+        1.49, 0.14, 0.94, 2.18, # Factor for S (8-11)
+        0.05, 0.34, 1.26, 0.29, # Factor for S (12-15)
+        2.66                   # Factor for S (16)
+    ]
 
     # -------------------------
     # API Pública
     # -------------------------
 
-    def process_review(
+    def apply_policy(
         self,
         node: KnowledgeNode,
         grade: ReviewGrade,
@@ -66,7 +72,7 @@ class SRSPolicy:
         """
         Inicialização mnemônica do conhecimento.
         """
-        node.stability = self._INITIAL_STABILITY[grade]
+        node.stability = self._FSRS_WEIGHTS[grade.value - 1]
         node.difficulty = self._initial_difficulty(grade)
 
     def _apply_subsequent_review(
@@ -89,16 +95,34 @@ class SRSPolicy:
             grade,
         )
 
-        if grade is ReviewGrade.AGAIN:
+        # Apply FSRS stability update
+        if grade == ReviewGrade.AGAIN:
             node.lapses += 1
-            node.stability = max(
-                self._MIN_STABILITY,
-                node.stability * 0.2,
+            # FSRS "Again" often leads to a significant drop in stability.
+            # Use w[4] for retention sustain, w[13] for decay.
+            node.stability = node.stability * self._FSRS_WEIGHTS[4] * (
+                (elapsed_days / node.stability) ** self._FSRS_WEIGHTS[13]
             )
-            return
+        elif grade == ReviewGrade.HARD:
+            # "Hard" increases stability but less than "Good" or "Easy".
+            # Use w[6] for stability multiplier, w[14] for decay.
+            node.stability = node.stability * self._FSRS_WEIGHTS[6] * (
+                (elapsed_days / node.stability) ** self._FSRS_WEIGHTS[14]
+            )
+        elif grade == ReviewGrade.GOOD:
+            # "Good" provides a solid increase in stability.
+            # Use w[8] for stability multiplier, w[15] for decay.
+            node.stability = node.stability * self._FSRS_WEIGHTS[8] * (
+                (elapsed_days / node.stability) ** self._FSRS_WEIGHTS[15]
+            )
+        elif grade == ReviewGrade.EASY:
+            # "Easy" provides the largest increase in stability.
+            # Use w[10] for stability multiplier, w[16] for decay.
+            node.stability = node.stability * self._FSRS_WEIGHTS[10] * (
+                (elapsed_days / node.stability) ** self._FSRS_WEIGHTS[16]
+            )
 
-        growth_factor = self._stability_growth_factor(grade)
-        node.stability *= growth_factor * (1 + (1 - retrievability))
+        node.stability = max(self._MIN_STABILITY, node.stability)
 
     # -------------------------
     # Matemática
@@ -119,11 +143,7 @@ class SRSPolicy:
             math.log(0.9) * elapsed_days / stability
         )
 
-    def _stability_growth_factor(self, grade: ReviewGrade) -> float:
-        """
-        Crescimento não-linear baseado na qualidade da recuperação.
-        """
-        return 1 + (self._STABILITY_GROWTH * (grade.value - 2))
+
 
     # -------------------------
     # Dificuldade

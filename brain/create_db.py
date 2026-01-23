@@ -1,3 +1,11 @@
+import sys
+import os
+
+# Adiciona a raiz do projeto ao PYTHONPATH
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from brain.infrastructure.persistence.database import Base, engine
 from brain.infrastructure.persistence import models
 
