@@ -1,11 +1,16 @@
 from uuid import UUID
 from typing import List, Optional, Dict
 from datetime import datetime
+
+# Importações de Entidades
 from brain.domain.entities.student import Student
 from brain.domain.entities.PerformanceEvent import PerformanceEvent
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.entities.StudyPlan import StudyPlan
 from brain.domain.entities.error_event import ErrorEvent
+from brain.domain.entities.cognitive_profile import CognitiveProfile
+
+# Importações de Portas
 from brain.application.ports.repositories import (
     StudentRepository,
     PerformanceRepository,
@@ -15,71 +20,40 @@ from brain.application.ports.repositories import (
     ErrorEventRepository
 )
 
-
 class InMemoryStudentRepository(StudentRepository):
     def __init__(self):
         self.students: Dict[UUID, Student] = {}
     
-    def get_by_id(self, student_id: UUID) -> Optional[Student]:
+    async def get_by_id(self, student_id: UUID) -> Optional[Student]:
         return self.students.get(student_id)
     
-    def save(self, student: Student) -> None:
+    async def save(self, student: Student) -> None:
         self.students[student.id] = student
-    
-    def delete(self, student_id: UUID) -> bool:
-        """Remove a student from the repository."""
-        if student_id in self.students:
-            del self.students[student_id]
-            return True
-        return False
-    
-    def get_all(self) -> List[Student]:
-        """Get all students."""
-        return list(self.students.values())
-
 
 class InMemoryPerformanceRepository(PerformanceRepository):
     def __init__(self):
         self.events: List[PerformanceEvent] = []
     
-    def get_recent_events(self, student_id: UUID, limit: int = 50) -> List[PerformanceEvent]:
-        """
-        Get the most recent performance events for a student.
-        Returns events sorted by timestamp (most recent last).
-        """
+    async def get_recent_events(self, student_id: UUID, limit: int = 50) -> List[PerformanceEvent]:
         student_events = [e for e in self.events if e.student_id == student_id]
-        # Sort by timestamp if available, otherwise maintain insertion order
         if student_events and hasattr(student_events[0], 'timestamp'):
             student_events.sort(key=lambda e: e.timestamp)
-        return student_events[-limit:] if len(student_events) > limit else student_events
+        return student_events[-limit:]
 
-    def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
-        """
-        Get the complete performance history for a student.
-        """
-        student_events = [e for e in self.events if e.student_id == student_id]
-        # Sort by timestamp if available, otherwise maintain insertion order
-        if student_events and hasattr(student_events[0], 'timestamp'):
-            student_events.sort(key=lambda e: e.timestamp)
-        return student_events
-    
-    def add_event(self, event: PerformanceEvent) -> None:
-        self.events.append(event)
-    
-    def get_events_by_topic(self, student_id: UUID, topic: str) -> List[PerformanceEvent]:
-        """Get all events for a specific topic and student."""
+    # Método genérico exigido pelo contrato
+    async def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
+        return [e for e in self.events if e.student_id == student_id]
+
+    # Método específico chamado pelo RecordReviewUseCase (Atenção aqui!)
+    async def get_history(self, student_id: UUID, node_id: UUID) -> List[PerformanceEvent]:
+        """Recupera histórico específico de um nó para cálculo de tendência."""
         return [
             e for e in self.events 
-            if e.student_id == student_id and hasattr(e, 'topic') and e.topic == topic
+            if e.student_id == student_id and getattr(e, 'knowledge_node_id', None) == node_id
         ]
     
-    def clear_events(self, student_id: Optional[UUID] = None) -> None:
-        """Clear events for a specific student or all events if no student_id provided."""
-        if student_id:
-            self.events = [e for e in self.events if e.student_id != student_id]
-        else:
-            self.events.clear()
-
+    async def add_event(self, event: PerformanceEvent) -> None:
+        self.events.append(event)
 
 class InMemoryKnowledgeRepository(KnowledgeRepository):
     def __init__(self):
@@ -87,135 +61,83 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
         self._nodes_by_id: Dict[UUID, KnowledgeNode] = {}
         self._nodes_by_subject: Dict[str, List[KnowledgeNode]] = {}
     
-    def get_full_graph(self) -> List[KnowledgeNode]:
-        """Get all knowledge nodes in the graph."""
-        return self.nodes.copy()  # Return a copy to prevent external modifications
+    async def get_full_graph(self) -> List[KnowledgeNode]:
+        return self.nodes.copy()
     
-    def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
-        """Get all nodes that are scheduled for review."""
+    async def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
         return [
             node for node in self.nodes 
             if hasattr(node, 'next_review_at') and node.next_review_at and node.next_review_at <= current_time
         ]
 
-    def set_graph(self, nodes: List[KnowledgeNode]) -> None:
-        """Replace the entire knowledge graph."""
-        self.nodes = nodes.copy()
-        self._nodes_by_id = {node.id: node for node in self.nodes}
-        self._nodes_by_subject = {}
-        for node in self.nodes:
-            if node.subject not in self._nodes_by_subject:
-                self._nodes_by_subject[node.subject] = []
-            self._nodes_by_subject[node.subject].append(node)
-    
-    def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
-        """Get a specific knowledge node by its ID."""
+    async def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
         return self._nodes_by_id.get(node_id)
     
-    def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
-        """Get a specific knowledge node by its title."""
+    async def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
         for node in self.nodes:
             if node.title == title:
                 return node
         return None
         
-    def add_node(self, node: KnowledgeNode) -> None:
-        """Add a single knowledge node to the graph."""
-        if node.id not in self._nodes_by_id:
+    async def save(self, node: KnowledgeNode) -> None:
+        """Upsert assíncrono."""
+        # Atualiza dicionário principal
+        self._nodes_by_id[node.id] = node
+        
+        # Atualiza lista linear (se existir, substitui; se não, adiciona)
+        found = False
+        for i, n in enumerate(self.nodes):
+            if n.id == node.id:
+                self.nodes[i] = node
+                found = True
+                break
+        if not found:
             self.nodes.append(node)
-            self._nodes_by_id[node.id] = node
-            if node.subject not in self._nodes_by_subject:
-                self._nodes_by_subject[node.subject] = []
-            self._nodes_by_subject[node.subject].append(node)
 
-    def update(self, node: KnowledgeNode) -> bool:
-        """Update an existing knowledge node."""
-        if node.id in self._nodes_by_id:
-            # Find and update in the main list
-            for i, existing_node in enumerate(self.nodes):
-                if existing_node.id == node.id:
-                    self.nodes[i] = node
-                    break
-            # Update in the subject dictionary
-            subject_nodes = self._nodes_by_subject.get(node.subject, [])
-            for i, existing_node in enumerate(subject_nodes):
-                if existing_node.id == node.id:
-                    subject_nodes[i] = node
-                    break
-            self._nodes_by_id[node.id] = node
-            return True
-        return False
+        # Atualiza índice por subject
+        subject = getattr(node, 'subject', 'general')
+        if subject not in self._nodes_by_subject:
+            self._nodes_by_subject[subject] = []
+        
+        # Remove versão antiga do subject list se existir e adiciona nova
+        self._nodes_by_subject[subject] = [
+            n for n in self._nodes_by_subject[subject] if n.id != node.id
+        ]
+        self._nodes_by_subject[subject].append(node)
 
-    def get_nodes_by_subject(self, subject: str) -> List[KnowledgeNode]:
-        return self._nodes_by_subject.get(subject, [])
+    # Alias assíncrono para compatibilidade com 'add' se o contrato pedir
+    add = save 
+    
+    async def update(self, node: KnowledgeNode) -> None:
+        await self.save(node)
 
 class InMemoryCognitiveProfileRepository(CognitiveProfileRepository):
     def __init__(self):
         self._profiles: Dict[UUID, CognitiveProfile] = {}
 
-    def get_by_student_id(self, student_id: UUID) -> Optional[CognitiveProfile]:
+    async def get_by_student_id(self, student_id: UUID) -> Optional[CognitiveProfile]:
         return self._profiles.get(student_id)
 
-    def save(self, profile: CognitiveProfile) -> None:
+    async def save(self, profile: CognitiveProfile) -> None:
         self._profiles[profile.student_id] = profile
 
+class InMemoryStudyPlanRepository(StudyPlanRepository):
+    def __init__(self):
+        self.plans: Dict[UUID, StudyPlan] = {}
+    
+    async def save(self, study_plan: StudyPlan) -> None:
+        self.plans[study_plan.id] = study_plan
+    
+    async def get_by_student_id(self, student_id: UUID) -> List[StudyPlan]:
+        return [p for p in self.plans.values() if p.student_id == student_id]
 
 class InMemoryErrorEventRepository(ErrorEventRepository):
-    def __init__(self, knowledge_repo: InMemoryKnowledgeRepository):
+    def __init__(self):
         self.errors: List[ErrorEvent] = []
-        self.knowledge_repo = knowledge_repo
 
-    def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
-        return [error for error in self.errors if error.student_id == student_id]
-
-    def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
-        subject_nodes = self.knowledge_repo.get_nodes_by_subject(subject)
-        subject_node_ids = {node.id for node in subject_nodes}
-        
-        return [
-            error for error in self.errors 
-            if error.student_id == student_id and error.knowledge_node_id in subject_node_ids
-        ]
-        
-    def add_error(self, error: ErrorEvent):
-        self.errors.append(error)
-
-
-
-class InMemoryStudyPlanRepository(StudyPlanRepository):
-    def __init__(self, verbose: bool = True):
-        self.plans: Dict[UUID, StudyPlan] = {}
-        self.verbose = verbose
+    async def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
+        return [e for e in self.errors if e.student_id == student_id]
     
-    def save(self, study_plan: StudyPlan) -> None:
-        self.plans[study_plan.id] = study_plan
-        if self.verbose:
-            print(f"[Infra] Plano de estudo {study_plan.id} salvo com sucesso para o aluno {study_plan.student_id}")
-    
-    def get_by_id(self, plan_id: UUID) -> Optional[StudyPlan]:
-        return self.plans.get(plan_id)
-    
-    def get_by_student_id(self, student_id: UUID) -> List[StudyPlan]:
-        """Get all study plans for a specific student."""
-        return [plan for plan in self.plans.values() if plan.student_id == student_id]
-    
-    def get_active_plan(self, student_id: UUID) -> Optional[StudyPlan]:
-        """Get the most recent or active study plan for a student."""
-        student_plans = self.get_by_student_id(student_id)
-        if not student_plans:
-            return None
-        # Return the most recently created plan
-        if hasattr(student_plans[0], 'created_at'):
-            return max(student_plans, key=lambda p: p.created_at)
-        return student_plans[-1]
-    
-    def delete(self, plan_id: UUID) -> bool:
-        """Delete a study plan."""
-        if plan_id in self.plans:
-            del self.plans[plan_id]
-            return True
-        return False
-    
-    def get_all(self) -> List[StudyPlan]:
-        """Get all study plans."""
-        return list(self.plans.values())
+    async def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
+        # Implementação simplificada para mock
+        return [e for e in self.errors if e.student_id == student_id]

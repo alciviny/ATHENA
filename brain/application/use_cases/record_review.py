@@ -7,7 +7,6 @@ from brain.application.ports.repositories import (
 )
 from brain.domain.services.intelligence_engine import IntelligenceEngine
 
-
 class RecordReviewUseCase:
     def __init__(
         self,
@@ -27,9 +26,15 @@ class RecordReviewUseCase:
         node_id: UUID,
         grade: ReviewGrade,
     ):
-        # 1. Carregar estado
-        node = self._node_repo.get_by_id(node_id)
-        history = self._perf_repo.get_history_for_student(student_id)
+        # 1. Carregar estado (COM AWAIT OBRIGATÓRIO)
+        # O erro acontecia aqui: faltava o await ou o repo estava sync
+        node = await self._node_repo.get_by_id(node_id)
+        
+        # O histórico também é async agora
+        history = await self._perf_repo.get_history(student_id, node_id)
+
+        if not node:
+            raise ValueError(f"Node {node_id} not found")
 
         # 2. Atualizar performance básica
         updated_node = self._engine.update_node_state(
@@ -39,15 +44,17 @@ class RecordReviewUseCase:
         )
 
         # 3. Decisão cognitiva
+        # CORREÇÃO: Passamos 'grade' porque a Engine exige para decidir o boost imediato
         if self._engine.should_trigger_priority_boost(updated_node, history, grade):
             updated_node.apply_penalty(factor=2.0)
 
-            # Propagação semântica (efeito colateral consciente)
+            # Propagação semântica
             await self._propagator.propagate_boost(node_id)
 
         elif grade >= ReviewGrade.GOOD:
             updated_node.record_success()
 
-        # 4. Persistência
-        self._node_repo.update(updated_node)
+        # 4. Persistência (COM AWAIT)
+        await self._node_repo.update(updated_node)
+        
         return updated_node
