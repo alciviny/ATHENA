@@ -16,6 +16,6 @@ type KnowledgeNode struct {
 	Reps           int       `json:"reps"`
 	Lapses         int       `json:"lapses"`
 	Weight         float64   `json:"weight"`
-	LastReview     time.Time `json:"last_review"`
-	NextReview     time.Time `json:"next_review"`
+	LastReviewedAt time.Time `json:"last_reviewed_at"`
+	NextReviewAt   time.Time `json:"next_review_at"`
 }
