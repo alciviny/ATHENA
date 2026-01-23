@@ -16,36 +16,42 @@ class StudentRepository(ABC):
 
 class PerformanceRepository(ABC):
     @abstractmethod
-    def get_recent_events(self, student_id: UUID, limit: int = 50) -> List[PerformanceEvent]:
+    async def get_recent_events(self, student_id: UUID, limit: int = 50) -> List[PerformanceEvent]:
         pass
 
     @abstractmethod
-    def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
+    async def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
+        pass
+
+    # Novo método que o UseCase usa
+    @abstractmethod
+    async def get_history(self, student_id: UUID, node_id: UUID) -> List[PerformanceEvent]:
         pass
 
 class KnowledgeRepository(ABC):
     @abstractmethod
-    def get_full_graph(self) -> List[KnowledgeNode]:
+    async def get_full_graph(self) -> List[KnowledgeNode]:
         pass
 
     @abstractmethod
-    def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
+    async def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
         pass
 
     @abstractmethod
-    def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
+    async def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
         pass
 
     @abstractmethod
-    def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
+    async def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
         pass
     
     @abstractmethod
-    def update(self, node: KnowledgeNode) -> None:
+    async def update(self, node: KnowledgeNode) -> None:
         pass
-
+    
+    # Método save/add para compatibilidade com o teste
     @abstractmethod
-    def add(self, node: KnowledgeNode) -> None:
+    async def save(self, node: KnowledgeNode) -> None:
         pass
 
 class StudyPlanRepository(ABC):

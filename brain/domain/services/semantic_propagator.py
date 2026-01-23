@@ -1,4 +1,3 @@
-import logging
 from uuid import UUID
 from typing import Iterable
 from brain.application.ports.repositories import (
@@ -6,14 +5,10 @@ from brain.application.ports.repositories import (
     KnowledgeVectorRepository,
 )
 
-logger = logging.getLogger(__name__)
-
 class SemanticPropagator:
     """
     Serviço de domínio responsável por propagar efeitos cognitivos
     (boosts / penalidades suaves) para microconceitos semanticamente próximos.
-
-    Atua como um mecanismo de 'contaminação controlada' no grafo de conhecimento.
     """
 
     def __init__(
@@ -33,25 +28,12 @@ class SemanticPropagator:
     ) -> None:
         """
         Propaga um boost/penalidade preventiva para conceitos semanticamente vizinhos.
-
-        Args:
-            origin_node_id: Nó que originou o evento cognitivo.
-            factor: Intensidade do efeito propagado (sempre menor que o nó origem).
-            neighborhood_size: Quantidade de vizinhos considerados.
         """
-
-        try:
-            neighbor_ids = await self._vector_repo.find_semantically_related(
-                origin_node_id,
-                limit=neighborhood_size,
-            )
-        except Exception:
-            logger.error(
-                "Falha ao buscar nós semanticamente relacionados no Qdrant.",
-                exc_info=True,
-                extra={"origin_node_id": str(origin_node_id)},
-            )
-            return # domínio já reagiu, siga em frente
+        # Busca vizinhos (Este já era async)
+        neighbor_ids = await self._vector_repo.find_semantically_related(
+            origin_node_id,
+            limit=neighborhood_size,
+        )
 
         await self._apply_penalty_to_neighbors(
             origin_node_id,
@@ -66,13 +48,16 @@ class SemanticPropagator:
         factor: float,
     ) -> None:
         for neighbor_id in neighbor_ids:
-            # Proteção defensiva (vetores nem sempre são perfeitos)
+            # Proteção defensiva
             if neighbor_id == origin_node_id:
                 continue
 
-            neighbor_node = self._node_repo.get_by_id(neighbor_id)
+            # --- CORREÇÃO 1: Adicionado 'await' aqui ---
+            neighbor_node = await self._node_repo.get_by_id(neighbor_id)
             if not neighbor_node:
                 continue
 
             neighbor_node.apply_penalty(factor=factor)
-            self._node_repo.update(neighbor_node)
+            
+            # --- CORREÇÃO 2: Adicionado 'await' aqui ---
+            await self._node_repo.update(neighbor_node)
