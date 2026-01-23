@@ -4,6 +4,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+import sys
+import os
+
+# Adiciona a raiz do projeto ao PYTHONPATH para permitir importações absolutas do módulo 'brain'
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from brain.api.fastapi.routes import study_routes, performance_routes, roi_routes, memory_routes
 
 
