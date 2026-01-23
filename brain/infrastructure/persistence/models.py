@@ -34,13 +34,14 @@ class KnowledgeNodeModel(Base):
     name = Column(String, nullable=False)         #
     subject = Column(String, nullable=False)      #
     weight_in_exam = Column(Float, nullable=False) #
+    weight = Column(Float, default=1.0) #
     difficulty = Column(Float, default=5.0)     #
     # FSRS fields
     stability = Column(Float, default=0.0)
     reps = Column(Integer, default=0)
     lapses = Column(Integer, default=0)
-    last_review = Column(DateTime(timezone=True), nullable=True)
-    next_review = Column(DateTime(timezone=True), default=func.now())
+    last_reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    next_review_at = Column(DateTime(timezone=True), default=func.now())
     
     dependencies = relationship(
         "KnowledgeNodeModel",

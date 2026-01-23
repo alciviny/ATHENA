@@ -22,13 +22,15 @@ class ReviewGrade(IntEnum):
 class KnowledgeNode:
     id: UUID
     title: str
+    subject: str
+    weight_in_exam: float = 0.0
     stability: float = 0.0
     difficulty: float = 5.0
     reps: int = 0
     lapses: int = 0
     weight: float = 1.0  # Fator de prioridade no algoritmo de seleção
-    last_review: Optional[datetime] = None
-    next_review: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_reviewed_at: Optional[datetime] = None
+    next_review_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def apply_penalty(self, factor: float = 1.5):
         """Aumenta a prioridade do nó quando detectada fraqueza cognitiva."""

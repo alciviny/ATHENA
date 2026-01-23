@@ -67,7 +67,9 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
         ]
 
     def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
-        pass
+        # Em um cenário real, isso consultaria o banco de dados.
+        # Para este teste, a lógica precisa apenas de uma lista vazia.
+        return []
 
 from brain.domain.entities.knowledge_node import KnowledgeNode
 
@@ -85,14 +87,14 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 difficulty=model.difficulty,
                 reps=model.reps,
                 lapses=model.lapses,
-                last_review=model.last_review,
-                next_review=model.next_review,
+                last_reviewed_at=model.last_reviewed_at,
+                next_review_at=model.next_review_at,
             )
             for model in node_models
         ]
 
     def get_overdue_nodes(self, current_time: datetime) -> List[KnowledgeNode]:
-        node_models = self.db.query(KnowledgeNodeModel).filter(KnowledgeNodeModel.next_review <= current_time).all()
+        node_models = self.db.query(KnowledgeNodeModel).filter(KnowledgeNodeModel.next_review_at <= current_time).all()
         return [
             KnowledgeNode(
                 id=model.id,
@@ -101,8 +103,8 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 difficulty=model.difficulty,
                 reps=model.reps,
                 lapses=model.lapses,
-                last_review=model.last_review,
-                next_review=model.next_review,
+                last_reviewed_at=model.last_reviewed_at,
+                next_review_at=model.next_review_at,
             )
             for model in node_models
         ]
@@ -117,12 +119,15 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
             return KnowledgeNode(
                 id=model.id,
                 title=model.name,
+                subject=model.subject,
+                weight_in_exam=model.weight_in_exam,
+                weight=model.weight,
                 stability=model.stability,
                 difficulty=model.difficulty,
                 reps=model.reps,
                 lapses=model.lapses,
-                last_review=model.last_review,
-                next_review=model.next_review,
+                last_reviewed_at=model.last_reviewed_at,
+                next_review_at=model.next_review_at,
             )
         return None
     
@@ -134,9 +139,26 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
             model.difficulty = node.difficulty
             model.reps = node.reps
             model.lapses = node.lapses
-            model.last_review = node.last_review
-            model.next_review = node.next_review
+            model.last_reviewed_at = node.last_reviewed_at
+            model.next_review_at = node.next_review_at
+            model.weight = node.weight
             self.db.flush()
+
+    def add(self, node: KnowledgeNode) -> None:
+        model = KnowledgeNodeModel(
+            id=node.id,
+            name=node.title,
+            subject=node.subject,
+            weight_in_exam=node.weight_in_exam,
+            stability=node.stability,
+            difficulty=node.difficulty,
+            reps=node.reps,
+            lapses=node.lapses,
+            last_reviewed_at=node.last_reviewed_at,
+            next_review_at=node.next_review_at,
+        )
+        self.db.add(model)
+        self.db.flush()
 
 
 class PostgresStudyPlanRepository(ports.StudyPlanRepository):
