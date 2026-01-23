@@ -37,7 +37,7 @@ class SRSPolicy:
     # API Pública
     # -------------------------
 
-    def apply_policy(
+    def process_review(
         self,
         node: KnowledgeNode,
         grade: ReviewGrade,

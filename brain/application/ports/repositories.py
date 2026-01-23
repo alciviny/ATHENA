@@ -66,3 +66,30 @@ class ErrorEventRepository(ABC):
     @abstractmethod
     def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
         pass
+
+
+class KnowledgeVectorRepository(ABC):
+    """
+    Porta de acesso ao mecanismo de busca vetorial (Qdrant, Pinecone, etc).
+
+    Responsável exclusivamente por operações de similaridade semântica.
+    Nenhuma regra de negócio deve viver aqui.
+    """
+    @abstractmethod
+    async def find_semantically_related(
+        self,
+        reference_node_id: UUID,
+        *,
+        limit: int = 5
+    ) -> List[UUID]:
+        """
+        Retorna IDs de nós semanticamente próximos ao nó de referência.
+
+        Args:
+            reference_node_id: ID do nó base no espaço vetorial.
+            limit: Número máximo de vizinhos retornados.
+
+        Returns:
+            Lista de UUIDs de nós semanticamente relacionados.
+        """
+        raise NotImplementedError

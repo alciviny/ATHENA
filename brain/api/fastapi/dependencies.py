@@ -119,3 +119,56 @@ def get_memory_analysis_service(
     knowledge_repo: PostgresKnowledgeRepository = Depends(get_knowledge_repository),
 ) -> MemoryAnalysisService:
     return MemoryAnalysisService(engine, knowledge_repo)
+
+
+# =========================================================
+# Semantic & Advanced Analysis (Added for RecordReview)
+# =========================================================
+from functools import lru_cache
+from brain.config import settings
+from brain.application.use_cases.record_review import RecordReviewUseCase
+from brain.domain.services.semantic_propagator import SemanticPropagator
+from brain.infrastructure.persistence.qdrant_repository import QdrantKnowledgeVectorRepository
+
+
+@lru_cache
+def get_vector_repository() -> QdrantKnowledgeVectorRepository:
+    """
+    Factory with cache for the vector repository.
+    """
+    return QdrantKnowledgeVectorRepository(
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
+        collection_name=settings.QDRANT_COLLECTION,
+    )
+
+
+# Note: The original get_intelligence_engine is now cached
+@lru_cache
+def get_cached_intelligence_engine() -> IntelligenceEngine:
+    """
+    Cached factory for the Intelligence Engine.
+    """
+    return IntelligenceEngine()
+
+
+def get_record_review_use_case(
+    node_repo: PostgresKnowledgeRepository = Depends(get_knowledge_repository),
+    perf_repo: PostgresPerformanceRepository = Depends(get_performance_repository),
+    vector_repo: QdrantKnowledgeVectorRepository = Depends(get_vector_repository),
+    engine: IntelligenceEngine = Depends(get_cached_intelligence_engine),
+) -> RecordReviewUseCase:
+    """
+    Provider for the Record Review use case.
+    """
+    propagator = SemanticPropagator(
+        knowledge_repository=node_repo,
+        vector_repository=vector_repo,
+    )
+    return RecordReviewUseCase(
+        node_repo=node_repo,
+        perf_repo=perf_repo,
+        engine=engine,
+        propagator=propagator,
+    )
+
