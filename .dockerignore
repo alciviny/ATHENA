@@ -1,0 +1,11 @@
+# Ignorar pastas pesadas
+bff/node_modules
+brain/venv
+brain/__pycache__
+postgres_data
+qdrant_storage
+.git
+
+# Ignorar binários locais
+worker-bin
+*.exe
