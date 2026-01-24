@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # --- Banco de Dados ---
   postgres:
     image: postgres:15-alpine
     container_name: athena_db
@@ -13,7 +14,13 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d athena"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # --- Banco Vetorial (IA) ---
   qdrant:
     image: qdrant/qdrant:latest
     container_name: athena_vector_db
@@ -22,6 +29,18 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_storage:/qdrant/storage
+
+  # --- O Novo Worker (Go) ---
+  worker:
+    build: .  # Constrói usando o Dockerfile da raiz
+    container_name: athena_worker
+    restart: always
+    environment:
+      # Conecta no serviço 'postgres' interno do Docker
+      DATABASE_URL: postgres://user:pass@postgres:5432/athena
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
