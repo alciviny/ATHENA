@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	TOTAL_NODES = 10_000
+	TOTAL_NODES = 100_000
 	BATCH_SIZE  = 1_000
 )
 
@@ -32,7 +32,13 @@ func main() {
 	}
 
 	log.Println("🔥 [STRESS] Conectando ao banco...")
-	pool, err := pgxpool.New(ctx, dbURL)
+	config, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		log.Fatalf("Erro na config do DB: %v", err)
+	}
+	// Ajuste para suportar a carga teórica máxima (Workers * MaxConcurrency)
+	config.MaxConns = int32(runtime.NumCPU() * 10)
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		log.Fatalf("Falha crítica: %v", err)
 	}
@@ -199,7 +205,7 @@ func streamTestNodes(ids []uuid.UUID) <-chan domain.KnowledgeNode {
 			out <- domain.KnowledgeNode{
 				ID:             id,
 				Stability:      1.5,
-				LastReviewedAt: now.Add(-48 * time.Hour),
+				LastReviewedAt: now.Add(-200 * time.Hour),
 				NextReviewAt:   now.Add(-24 * time.Hour),
 				Weight:         1.0,
 			}
