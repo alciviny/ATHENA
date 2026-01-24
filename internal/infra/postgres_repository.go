@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"athena/internal/domain"
+	"brain-worker-go/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

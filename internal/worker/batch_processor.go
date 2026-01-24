@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"athena/internal/domain"
-	"athena/internal/infra"
+	"brain-worker-go/internal/domain"
+    "brain-worker-go/internal/infra"
 )
 
 const (
-	MaxConcurrency         = 10
+	MaxConcurrency         = 8
 	CriticalRetrievability = 0.8
 	SevereRetrievability   = 0.7
 )
