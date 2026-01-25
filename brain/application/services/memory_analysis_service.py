@@ -19,8 +19,8 @@ class MemoryAnalysisService:
             subject_history = self._filter_subject_history(history, topic)
             state = self.engine.analyze_memory_state(subject_history)
             
-            node = await self.knowledge_repo.get_node_by_title(topic)
-            subject_name = node.title if node else "Unknown Subject"
+            node = await self.knowledge_repo.get_node_by_name(topic)
+            subject_name = node.name if node else "Unknown Subject"
             
             memory_report.append({
                 "subject_id": str(topic), # Using topic as a unique identifier for reporting

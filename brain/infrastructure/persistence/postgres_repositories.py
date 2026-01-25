@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
+from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +30,12 @@ class PostgresStudentRepository(ports.StudentRepository):
         self.db = db
 
     async def get_by_id(self, student_id: UUID) -> Optional[Student]:
-        result = await self.db.execute(select(StudentModel).filter(StudentModel.id == student_id))
+        query = (
+            select(StudentModel)
+            .options(selectinload(StudentModel.cognitive_profile))
+            .filter(StudentModel.id == student_id)
+        )
+        result = await self.db.execute(query)
         student_model = result.scalars().first()
         if student_model:
             return Student(
@@ -116,7 +122,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         return [
             KnowledgeNode(
                 id=model.id,
-                title=model.name,
+                name=model.name,
                 subject=model.subject,
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
@@ -136,7 +142,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         return [
             KnowledgeNode(
                 id=model.id,
-                title=model.name,
+                name=model.name,
                 subject=model.subject,
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
@@ -150,13 +156,13 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
             for model in node_models
         ]
 
-    async def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
-        result = await self.db.execute(select(KnowledgeNodeModel).filter(KnowledgeNodeModel.name == title))
+    async def get_node_by_name(self, name: str) -> Optional[KnowledgeNode]:
+        result = await self.db.execute(select(KnowledgeNodeModel).filter(KnowledgeNodeModel.name == name))
         model = result.scalars().first()
         if model:
             return KnowledgeNode(
                 id=model.id,
-                title=model.name,
+                name=model.name,
                 subject=model.subject,
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
@@ -175,7 +181,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         if model:
             return KnowledgeNode(
                 id=model.id,
-                title=model.name,
+                name=model.name,
                 subject=model.subject,
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
@@ -216,7 +222,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         else:
             model = KnowledgeNodeModel(
                 id=node.id,
-                name=node.title,
+                name=node.name,
                 subject=node.subject,
                 weight_in_exam=node.weight_in_exam,
                 stability=node.stability,

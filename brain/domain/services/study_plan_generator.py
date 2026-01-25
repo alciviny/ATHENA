@@ -9,7 +9,7 @@ from brain.domain.entities.performance_event import (
     PerformanceMetric,
 )
 from brain.domain.entities.knowledge_node import KnowledgeNode
-from brain.domain.entities.study_plan import StudyPlan, StudyFocusLevel
+from brain.domain.entities.study_plan import StudyPlan as StudyPlanEntity, StudyFocusLevel
 from brain.domain.policies.adaptive_rule import AdaptiveRule
 
 
@@ -46,7 +46,7 @@ class StudyPlanGenerator:
         student: Student,
         cognitive_profile: CognitiveProfile,
         performance_events: List[PerformanceEvent],
-    ) -> StudyPlan:
+    ) -> StudyPlanEntity:
         """
         Gera um plano de estudo adaptativo para o aluno.
         """
@@ -78,7 +78,7 @@ class StudyPlanGenerator:
         estimated_duration = self._estimate_duration(context["target_nodes"])
 
         # 7. Criar StudyPlan
-        return StudyPlan(
+        return StudyPlanEntity(
             id=uuid4(),
             student_id=student.id,
             created_at=datetime.now(timezone.utc),

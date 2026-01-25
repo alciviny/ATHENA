@@ -6,7 +6,7 @@ from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.PerformanceEvent import PerformanceEvent
 from brain.domain.entities.knowledge_node import KnowledgeNode
-from brain.domain.entities.StudyPlan import StudyPlan
+from brain.domain.entities.study_plan import StudyPlan
 from brain.domain.entities.error_event import ErrorEvent
 
 class StudentRepository(ABC):
@@ -41,7 +41,7 @@ class KnowledgeRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
+    async def get_node_by_name(self, name: str) -> Optional[KnowledgeNode]:
         pass
 
     @abstractmethod
