@@ -17,16 +17,21 @@ class StudentModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     goal = Column(String, nullable=False)  # Armazena o valor do StudentGoal Enum
-    cognitive_profile_id = Column(UUID(as_uuid=True), nullable=True) #
+    
+    # Relação 1-para-1: Um estudante tem um perfil cognitivo.
+    cognitive_profile = relationship("CognitiveProfileModel", back_populates="student", uselist=False)
 
 class CognitiveProfileModel(Base):
     __tablename__ = "cognitive_profiles"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False, unique=True)
     retention_rate = Column(Float, nullable=False, default=0.7)
     learning_speed = Column(Float, nullable=False, default=0.5)
     stress_sensitivity = Column(Float, nullable=False, default=0.3)
     error_patterns = Column(JSON, nullable=False, default={})
+
+    # Relação de volta para o estudante
+    student = relationship("StudentModel", back_populates="cognitive_profile")
 
 class KnowledgeNodeModel(Base):
     __tablename__ = "knowledge_nodes"

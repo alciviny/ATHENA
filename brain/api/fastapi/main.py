@@ -75,7 +75,7 @@ app.include_router(
 # =========================================================
 
 @app.get("/", tags=["Health"])
-def health_check():
+async def health_check():
     return {
         "status": "online",
         "engine": "Athena Brain",

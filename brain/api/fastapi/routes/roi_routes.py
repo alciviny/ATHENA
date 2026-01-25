@@ -13,9 +13,9 @@ async def get_roi_report(
     performance_repo: PerformanceRepository = Depends(get_performance_repository),
     service: ROIAnalysisService = Depends(get_roi_analysis_service),
 ):
-    student = student_repo.get_by_id(student_id)
+    student = await student_repo.get_by_id(student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     
-    history = performance_repo.get_history_for_student(student_id)
+    history = await performance_repo.get_history_for_student(student_id)
     return service.analyze(student, history)

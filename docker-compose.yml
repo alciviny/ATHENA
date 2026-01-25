@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # --- Banco de Dados ---
+  # --- Banco Relacional (Postgres) ---
   postgres:
     image: postgres:15-alpine
     container_name: athena_db
@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- Banco Vetorial (IA) ---
+  # --- Banco Vetorial (Qdrant) ---
   qdrant:
     image: qdrant/qdrant:latest
     container_name: athena_vector_db
@@ -30,13 +30,33 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
 
-  # --- O Novo Worker (Go) ---
+  # --- O Cérebro (Python/FastAPI) ---
+  brain:
+    build: ./brain  # Aponta para o Dockerfile dentro da pasta brain
+    container_name: athena_brain
+    restart: always
+    volumes:
+      - ./brain:/app/brain # Mapeia o código local para dentro do container
+    ports:
+      - "8000:8000" # Libera acesso localhost:8000 para você testar
+    environment:
+      # Conecta no Postgres interno
+      DATABASE_URL: postgresql://user:pass@postgres:5432/athena
+      # Conecta no Qdrant interno
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  # --- O Worker (Go) ---
   worker:
-    build: .  # Constrói usando o Dockerfile da raiz
+    build: .  # Aponta para o Dockerfile na raiz
     container_name: athena_worker
     restart: always
     environment:
-      # Conecta no serviço 'postgres' interno do Docker
       DATABASE_URL: postgres://user:pass@postgres:5432/athena
     depends_on:
       postgres:

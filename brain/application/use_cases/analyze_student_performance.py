@@ -1,4 +1,5 @@
 from typing import List
+from uuid import UUID
 from brain.application.ports.ai_service import AIService
 from brain.application.ports.repositories import ErrorEventRepository
 from brain.domain.entities.error_event import ErrorEvent
@@ -17,11 +18,11 @@ class AnalyzeStudentPerformance:
         self.error_event_repository = error_event_repository
         self.ai_service = ai_service
 
-    def execute(self, student_id: str, subject: str) -> str:
+    async def execute(self, student_id: UUID, subject: str) -> str:
         """
         Executes the performance analysis for a given subject.
         """
-        errors: List[ErrorEvent] = self.error_event_repository.get_by_student_and_subject(
+        errors: List[ErrorEvent] = await self.error_event_repository.get_by_student_and_subject(
             student_id,
             subject
         )
@@ -29,5 +30,5 @@ class AnalyzeStudentPerformance:
         if not errors:
             return f"Nenhuma análise a ser feita para '{subject}', pois não foram encontrados erros."
 
-        analysis = self.ai_service.analyze_student_errors(errors, subject)
+        analysis = await self.ai_service.analyze_student_errors(errors, subject)
         return analysis

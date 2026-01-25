@@ -3,10 +3,12 @@ from uuid import UUID
 from pydantic import BaseModel
 from brain.api.fastapi.dependencies import (
     get_analyze_student_performance_use_case,
+    get_record_review_use_case,
 )
 from brain.application.use_cases.analyze_student_performance import (
     AnalyzeStudentPerformance,
 )
+from brain.application.use_cases.record_review import RecordReviewUseCase
 
 router = APIRouter(tags=["Student Performance"])
 
@@ -14,31 +16,30 @@ router = APIRouter(tags=["Student Performance"])
 class performance_event_schema(BaseModel):
     node_id: str
     success: bool
-    difficulty_level: int # 1-5
     response_time_seconds: float
 
 @router.post(
     "/{student_id}/record",
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     summary="Record student performance event",
 )
 async def record_performance(
     student_id: UUID,
     event: performance_event_schema,
-    use_case: AnalyzeStudentPerformance = Depends(get_analyze_student_performance_use_case),
+    use_case: RecordReviewUseCase = Depends(get_record_review_use_case),
 ):
     """
     Recebe um evento de performance (acerto/erro) e dispara 
     a atualização automática do grafo de conhecimento.
     """
     try:
-        # Aqui o Use Case deve salvar o evento e atualizar o KnowledgeNode
-        analysis = use_case.execute(
+        result = await use_case.execute(
             student_id=student_id, 
             node_id=event.node_id,
-            success=event.success
+            success=event.success,
+            response_time_seconds=event.response_time_seconds
         )
-        return {"status": "processed", "analysis_summary": analysis}
+        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -52,9 +53,12 @@ async def analyze_performance(
     subject: str = Query(..., examples=["Matemática"]),
     use_case: AnalyzeStudentPerformance = Depends(get_analyze_student_performance_use_case),
 ):
-    analysis = use_case.execute(student_id=student_id, subject=subject)
-    return {
-        "student_id": student_id,
-        "subject": subject,
-        "analysis": analysis,
-    }
+    try:
+        analysis = await use_case.execute(student_id=student_id, subject=subject)
+        return {
+            "student_id": student_id,
+            "subject": subject,
+            "analysis": analysis,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during analysis.")
