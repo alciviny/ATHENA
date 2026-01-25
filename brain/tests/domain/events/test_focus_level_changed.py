@@ -1,7 +1,7 @@
 import pytest
 from uuid import uuid4
 from brain.domain.events.focus_level_changed import FocusLevelChanged
-from brain.domain.entities.StudyPlan import StudyFocusLevel
+from brain.domain.entities.study_plan import StudyFocusLevel
 
 def test_focus_level_changed_creation():
     aggregate_id = uuid4()  # student_id ou study_plan_id

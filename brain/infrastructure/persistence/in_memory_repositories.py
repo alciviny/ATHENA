@@ -6,7 +6,7 @@ from datetime import datetime
 from brain.domain.entities.student import Student
 from brain.domain.entities.PerformanceEvent import PerformanceEvent
 from brain.domain.entities.knowledge_node import KnowledgeNode
-from brain.domain.entities.StudyPlan import StudyPlan
+from brain.domain.entities.study_plan import StudyPlan
 from brain.domain.entities.error_event import ErrorEvent
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 

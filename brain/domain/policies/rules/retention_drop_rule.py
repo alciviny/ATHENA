@@ -2,7 +2,7 @@ from typing import Dict, List, Any
 
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.entities.PerformanceEvent import PerformanceMetric
-from brain.domain.entities.StudyPlan import StudyFocusLevel
+from brain.domain.entities.study_plan import StudyFocusLevel
 from brain.domain.policies.adaptive_rule import AdaptiveRule
 
 

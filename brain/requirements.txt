@@ -11,3 +11,4 @@ anyio==4.3.0
 qdrant-client>=1.7.0
 pytest-asyncio
 asyncpg
+aiosqlite

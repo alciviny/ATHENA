@@ -1,28 +1,43 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict, Any
 
 from brain.domain.entities.error_event import ErrorEvent
 
 
 class AIService(ABC):
     """
-    Porta para serviços de Inteligência Artificial.
-
-    Define a interface para analisar qualitativamente os erros de um aluno,
-    abstraindo a implementação concreta (OpenAI, Gemini, etc.).
+    Porta para serviços de IA Generativa.
+    Responsável por Análise (Crítica) e Geração (Criativa).
     """
 
     @abstractmethod
-    def analyze_student_errors(
+    async def analyze_student_errors(
         self,
         errors: List[ErrorEvent],
         subject: str,
     ) -> str:
         """
-        Analisa uma lista de erros e retorna uma análise qualitativa.
+        Analisa padrões de erro do aluno e sugere plano de correção.
+        """
+        pass
 
-        :param errors: Lista de eventos de erro do aluno.
-        :param subject: Matéria em foco para a análise.
-        :return: Uma string com a análise e sugestões.
+    @abstractmethod
+    async def generate_flashcard(
+        self,
+        topic: str,
+        difficulty: int,
+        context: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Gera uma questão de estudo (Flashcard) baseada em um tópico.
+
+        :param topic: O assunto (ex: "Cinemática").
+        :param difficulty: Nível de 1 a 5.
+        :param context: Texto de referência (RAG) para evitar alucinação.
+        :return: Um dicionário com:
+            - pergunta: str
+            - opcoes: List[str]
+            - correta_index: int
+            - explicacao: str
         """
         pass

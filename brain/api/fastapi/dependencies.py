@@ -15,8 +15,9 @@ from brain.infrastructure.persistence.postgres_repositories import (
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.analyze_student_performance import AnalyzeStudentPerformance
 from brain.application.use_cases.record_review import RecordReviewUseCase
-from brain.infrastructure.llm.mock_ai_service import MockAIService
 from brain.application.ports.ai_service import AIService
+from brain.infrastructure.llm.openai_service import OpenAIService
+from brain.config.settings import Settings
 from brain.application.services.roi_analysis_service import ROIAnalysisService
 from brain.application.services.memory_analysis_service import MemoryAnalysisService
 
@@ -69,8 +70,17 @@ from brain.application.ports.repositories import KnowledgeRepository
 # Domain & Application Services
 # =========================================================
 
-async def get_ai_service() -> AIService:
-    return MockAIService()
+def get_ai_service() -> AIService:
+    settings = Settings()
+
+    # Falha segura: sem chave → Mock
+    if not settings.OPENAI_API_KEY:
+        from brain.infrastructure.llm.mock_ai_service import MockAIService
+        return MockAIService()
+
+    return OpenAIService(
+        api_key=settings.OPENAI_API_KEY,
+    )
 
 def get_intelligence_engine() -> IntelligenceEngine:
     return IntelligenceEngine()
