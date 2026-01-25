@@ -11,8 +11,8 @@ async def get_memory_status(
     repo=Depends(get_student_repository),
     service: MemoryAnalysisService = Depends(get_memory_analysis_service),
 ):
-    student = repo.get_by_id(student_id)
+    student = await repo.get_by_id(student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-    history = repo.get_performance_history(student_id)
-    return service.get_student_memory_status(student, history)
+    history = await repo.get_performance_history(student_id)
+    return await service.get_student_memory_status(student, history)

@@ -11,7 +11,7 @@ from brain.domain.entities.error_event import ErrorEvent
 
 class StudentRepository(ABC):
     @abstractmethod
-    def get_by_id(self, student_id: UUID) -> Optional[Student]:
+    async def get_by_id(self, student_id: UUID) -> Optional[Student]:
         pass
 
 class PerformanceRepository(ABC):
@@ -23,9 +23,12 @@ class PerformanceRepository(ABC):
     async def get_history_for_student(self, student_id: UUID) -> List[PerformanceEvent]:
         pass
 
-    # Novo método que o UseCase usa
     @abstractmethod
     async def get_history(self, student_id: UUID, node_id: UUID) -> List[PerformanceEvent]:
+        pass
+
+    @abstractmethod
+    async def save(self, event: PerformanceEvent) -> None:
         pass
 
 class KnowledgeRepository(ABC):
@@ -49,32 +52,31 @@ class KnowledgeRepository(ABC):
     async def update(self, node: KnowledgeNode) -> None:
         pass
     
-    # Método save/add para compatibilidade com o teste
     @abstractmethod
     async def save(self, node: KnowledgeNode) -> None:
         pass
 
 class StudyPlanRepository(ABC):
     @abstractmethod
-    def save(self, study_plan: StudyPlan) -> None:
+    async def save(self, study_plan: StudyPlan) -> None:
         pass
 
 class CognitiveProfileRepository(ABC):
     @abstractmethod
-    def get_by_student_id(self, student_id: UUID) -> Optional[CognitiveProfile]:
+    async def get_by_student_id(self, student_id: UUID) -> Optional[CognitiveProfile]:
         pass
         
     @abstractmethod
-    def save(self, profile: CognitiveProfile) -> None:
+    async def save(self, profile: CognitiveProfile) -> None:
         pass
 
 class ErrorEventRepository(ABC):
     @abstractmethod
-    def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
+    async def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
         pass
     
     @abstractmethod
-    def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
+    async def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
         pass
 
 

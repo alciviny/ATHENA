@@ -31,20 +31,17 @@ def seed_database():
         # Verifica se o estudante já existe
         existing_student = db.query(StudentModel).filter(StudentModel.id == STUDENT_ID).first()
         if existing_student:
-            # Verifica se ele tem um perfil cognitivo, se não, cria um
-            existing_profile = db.query(CognitiveProfileModel).filter(CognitiveProfileModel.student_id == STUDENT_ID).first()
-            if not existing_profile:
+            if not existing_student.cognitive_profile:
                 print(f"Estudante existe mas não tem perfil cognitivo. Criando...")
                 new_profile = CognitiveProfileModel(
                     id=uuid.uuid4(),
-                    student_id=STUDENT_ID,
                     retention_rate=0.8,
                     learning_speed=0.6,
                     stress_sensitivity=0.2,
                     error_patterns={}
                 )
-                db.add(new_profile)
-                existing_student.cognitive_profile_id = new_profile.id
+                existing_student.cognitive_profile = new_profile
+                db.add(existing_student)
                 db.commit()
                 print("Perfil cognitivo criado para o estudante existente.")
             else:
@@ -53,27 +50,28 @@ def seed_database():
 
         print(f"Criando estudante de teste: {STUDENT_NAME}...")
 
-        # Primeiro cria o perfil cognitivo
+        # 1. Cria as instâncias do estudante e do perfil
+        new_student = StudentModel(
+            id=STUDENT_ID,
+            name=STUDENT_NAME,
+            goal=STUDENT_GOAL,
+        )
+
         new_profile = CognitiveProfileModel(
             id=COGNITIVE_PROFILE_ID,
-            student_id=STUDENT_ID,
             retention_rate=0.8,
             learning_speed=0.6,
             stress_sensitivity=0.2,
             error_patterns={}
         )
-        db.add(new_profile)
 
-        # Cria a instância do modelo SQLAlchemy
-        new_student = StudentModel(
-            id=STUDENT_ID,
-            name=STUDENT_NAME,
-            goal=STUDENT_GOAL,
-            cognitive_profile_id=new_profile.id
-        )
+        # 2. Associa o perfil ao estudante usando o relacionamento
+        new_student.cognitive_profile = new_profile
 
-        # Adiciona à sessão e commita
+        # 3. Adiciona o estudante à sessão (o perfil vai junto por causa do relacionamento)
         db.add(new_student)
+
+        # 4. Commita a transação. O SQLAlchemy resolve a ordem de inserção.
         db.commit()
 
         print("Estudante e perfil cognitivo criados com sucesso!")

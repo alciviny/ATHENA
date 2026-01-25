@@ -41,44 +41,38 @@ class GenerateStudyPlanUseCase:
         self.cognitive_profile_repo = cognitive_profile_repo
         self.adaptive_rules = adaptive_rules
 
-    def execute(self, student_id: UUID) -> StudyPlanOutputDTO:
+    async def execute(self, student_id: UUID) -> StudyPlanOutputDTO:
         # 1. Recuperar os dados necessários através das Ports (Repositórios)
-        student = self.student_repo.get_by_id(student_id)
+        student = await self.student_repo.get_by_id(student_id)
         if not student:
             raise StudentNotFoundError(f"Estudante com ID {student_id} não encontrado.")
 
-        cognitive_profile = self.cognitive_profile_repo.get_by_student_id(student.id)
+        cognitive_profile = await self.cognitive_profile_repo.get_by_student_id(student.id)
         if not cognitive_profile:
             raise CognitiveProfileNotFoundError(
                 f"Perfil cognitivo para o estudante com ID {student_id} não encontrado."
             )
         
-        recent_events = self.performance_repo.get_recent_events(student_id)
+        recent_events = await self.performance_repo.get_recent_events(student_id)
 
         # Retrieve overdue nodes
         current_time = datetime.now(timezone.utc)
-        overdue_nodes = self.knowledge_repo.get_overdue_nodes(current_time)
+        overdue_nodes = await self.knowledge_repo.get_overdue_nodes(current_time)
 
         # Retrieve all nodes to be used by the generator
-        # The generator will prioritize overdue nodes
-        all_nodes = self.knowledge_repo.get_full_graph()
+        all_nodes = await self.knowledge_repo.get_full_graph()
 
         # Combine and prioritize overdue nodes
-        # Ensure unique nodes and overdue nodes are at the top
         prioritized_nodes = []
         overdue_node_ids = {node.id for node in overdue_nodes}
-
-        # Add overdue nodes first
         prioritized_nodes.extend(overdue_nodes)
-
-        # Add remaining nodes, ensuring no duplicates
         for node in all_nodes:
             if node.id not in overdue_node_ids:
                 prioritized_nodes.append(node)
 
         # 2. Instanciar o Domain Service (O Cérebro)
         generator = StudyPlanGenerator(
-            knowledge_graph=prioritized_nodes, # Use prioritized nodes
+            knowledge_graph=prioritized_nodes,
             adaptive_rules=self.adaptive_rules
         )
 
@@ -90,7 +84,7 @@ class GenerateStudyPlanUseCase:
         )
 
         # 4. Persistir o novo plano
-        self.study_plan_repo.save(study_plan)
+        await self.study_plan_repo.save(study_plan)
 
         # 5. Retornar os dados formatados (DTO)
         return StudyPlanOutputDTO.from_entity(study_plan)

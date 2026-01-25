@@ -1,60 +1,43 @@
-from uuid import UUID
-from brain.domain.services.semantic_propagator import SemanticPropagator
-from brain.domain.entities.knowledge_node import ReviewGrade
-from brain.application.ports.repositories import (
-    KnowledgeRepository,
-    PerformanceRepository,
-)
-from brain.domain.services.intelligence_engine import IntelligenceEngine
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
+from brain.application.ports.repositories import KnowledgeRepository, PerformanceRepository
+from brain.domain.entities.PerformanceEvent import PerformanceEvent, PerformanceEventType, PerformanceMetric
+
 
 class RecordReviewUseCase:
-    def __init__(
-        self,
-        node_repo: KnowledgeRepository,
-        perf_repo: PerformanceRepository,
-        engine: IntelligenceEngine,
-        propagator: SemanticPropagator,
-    ) -> None:
-        self._node_repo = node_repo
-        self._perf_repo = perf_repo
-        self._engine = engine
-        self._propagator = propagator
+    def __init__(self, performance_repo: PerformanceRepository, node_repo: KnowledgeRepository):
+        self.performance_repo = performance_repo
+        self.node_repo = node_repo
 
-    async def execute(
-        self,
-        student_id: UUID,
-        node_id: UUID,
-        grade: ReviewGrade,
-    ):
-        # 1. Carregar estado (COM AWAIT OBRIGATÓRIO)
-        # O erro acontecia aqui: faltava o await ou o repo estava sync
-        node = await self._node_repo.get_by_id(node_id)
-        
-        # O histórico também é async agora
-        history = await self._perf_repo.get_history(student_id, node_id)
-
+    async def execute(self, student_id: UUID, node_id: str, success: bool, response_time_seconds: float = 0.0):
+        # 1. Buscar Nó
+        node_uuid = UUID(node_id) if isinstance(node_id, str) else node_id
+        node = await self.node_repo.get_by_id(node_uuid)
         if not node:
-            raise ValueError(f"Node {node_id} not found")
+            raise ValueError(f"Knowledge Node {node_id} not found")
 
-        # 2. Atualizar performance básica
-        updated_node = self._engine.update_node_state(
-            node=node,
-            grade=grade,
-            history=history,
-        )
-
-        # 3. Decisão cognitiva
-        # CORREÇÃO: Passamos 'grade' porque a Engine exige para decidir o boost imediato
-        if self._engine.should_trigger_priority_boost(updated_node, history, grade):
-            updated_node.apply_penalty(factor=2.0)
-
-            # Propagação semântica
-            await self._propagator.propagate_boost(node_id)
-
-        elif grade >= ReviewGrade.GOOD:
-            updated_node.record_success()
-
-        # 4. Persistência (COM AWAIT)
-        await self._node_repo.update(updated_node)
+        # 2. Atualizar FSRS Simplificado
+        node.reps += 1
+        node.last_reviewed_at = datetime.now(timezone.utc)
+        if success:
+            node.stability += 1.0
+        else:
+            node.stability = 0.0
+            node.lapses += 1
         
-        return updated_node
+        await self.node_repo.update(node)
+
+        # 3. Salvar Evento
+        event = PerformanceEvent(
+            id=uuid4(),
+            student_id=student_id,
+            event_type=PerformanceEventType.QUIZ, # Assumindo que a revisão do flashcard é um tipo de quiz
+            occurred_at=datetime.now(timezone.utc),
+            topic=node.name,
+            metric=PerformanceMetric.ACCURACY, # Usando ACCURACY para sucesso/falha
+            value=1.0 if success else 0.0,
+            baseline=0.0, # O baseline pode ser melhorado posteriormente
+        )
+        await self.performance_repo.save(event)
+        
+        return {"status": "recorded", "node": node.name, "new_stability": node.stability}
