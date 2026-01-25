@@ -3,10 +3,10 @@ from datetime import datetime
 from typing import List, TYPE_CHECKING
 from uuid import UUID
 
-from brain.domain.entities.StudyPlan import StudyFocusLevel
+from brain.domain.entities.study_plan import StudyFocusLevel, StudyPlan
 
 if TYPE_CHECKING:
-    from brain.domain.entities.StudyPlan import StudyPlan
+    from brain.domain.entities.study_plan import StudyPlan
 
 @dataclass(frozen=True, slots=True)
 class StudyPlanOutputDTO:

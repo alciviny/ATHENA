@@ -9,11 +9,10 @@ class ROIAnalysisService:
     def analyze(self, student, history) -> List[Dict]:
         roi_data = self.engine.calculate_roi_per_subject(student, history)
         report = []
-        for subject in student.subjects:
-            score = roi_data.get(str(subject.id), 0.0)
+        for subject_name, score in roi_data.items():
             report.append({
-                "subject_id": str(subject.id),
-                "subject_name": subject.name,
+                "subject_id": None, # ID não está disponível neste fluxo
+                "subject_name": subject_name,
                 "roi_score": score,
                 "status": self._classify(score),
                 "recommendation": self._recommend(score)

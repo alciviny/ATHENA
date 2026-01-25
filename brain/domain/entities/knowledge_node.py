@@ -21,7 +21,7 @@ class ReviewGrade(IntEnum):
 @dataclass
 class KnowledgeNode:
     id: UUID
-    title: str
+    name: str
     subject: str
     weight_in_exam: float = 0.0
     stability: float = 0.0

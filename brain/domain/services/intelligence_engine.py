@@ -17,6 +17,37 @@ class IntelligenceEngine:
         2.66
     ]
 
+    def calculate_roi_per_subject(self, student: "Student", history: List[PerformanceEvent]) -> dict[str, float]:
+        """
+        # TODO: Esta é uma implementação de placeholder para o cálculo de ROI.
+        # A lógica atual usa uma métrica simplificada (média de acurácia por matéria).
+        # Uma implementação final deve ser mais sofisticada, considerando por exemplo:
+        # - O ganho de 'stability' em relação ao tempo de estudo.
+        # - A importância (peso) da matéria para o objetivo do aluno.
+        # - A frequência de erros (lapses).
+
+        Placeholder ROI Calculation.
+        Calculates a simple score based on accuracy per subject found in history.
+        Returns a dictionary of {subject_name: score}
+        """
+        subject_events: dict[str, list[float]] = {}
+        for event in history:
+            if event.metric == PerformanceMetric.ACCURACY:
+                # O 'topic' do evento de performance é usado como proxy para a matéria
+                if event.topic not in subject_events:
+                    subject_events[event.topic] = []
+                subject_events[event.topic].append(event.value)
+
+        subject_roi: dict[str, float] = {}
+        for subject, values in subject_events.items():
+            if values:
+                # Média simples da acurácia como "ROI score"
+                subject_roi[subject] = mean(values)
+            else:
+                subject_roi[subject] = 0.0
+        
+        return subject_roi
+
     def analyze_low_accuracy_trend(self, history: List[PerformanceEvent], threshold: float = 0.6) -> bool:
         """Verifica se a acurácia média recente está abaixo do limite aceitável."""
         if not history: return False
@@ -166,6 +197,46 @@ class IntelligenceEngine:
         if not node.last_reviewed_at:
             return 0
         return max(0, (now - node.last_reviewed_at).days)
+
+    def analyze_memory_state(self, subject_history: List[PerformanceEvent]) -> dict:
+        """
+        # TODO: Esta é uma implementação de placeholder para a análise de memória.
+        # A lógica atual é supersimplificada e deriva o estado apenas do último evento.
+        # Uma implementação final deve:
+        # 1. Receber ou buscar o `KnowledgeNode` atual para o tópico.
+        # 2. Usar o método `_retrievability` desta classe para calcular a real probabilidade
+        #    de retenção com base na estabilidade (S) e no tempo decorrido (t).
+        # 3. Retornar a `stability` real do nó em `stability_days`.
+
+        Placeholder Memory State Analysis.
+        Derives a simple memory state from the performance history of a single subject.
+        """
+        if not subject_history:
+            return {
+                "current_retention": 0.0,
+                "stability_days": 0.0,
+                "needs_review": True,
+            }
+
+        # Assumes history is ordered by date, which is a reasonable expectation
+        last_event = subject_history[-1]
+        
+        current_retention = 0.0
+        if last_event.metric == PerformanceMetric.ACCURACY:
+            current_retention = last_event.value
+        
+        # Simple rule for needing review, e.g., if last attempt was below 70%
+        needs_review = current_retention < 0.7
+
+        # Cannot calculate real stability without the node itself, so we return a dummy value
+        # In a real scenario, this method would likely receive the node or fetch it.
+        stability_days = 1.0  # Dummy value
+
+        return {
+            "current_retention": current_retention,
+            "stability_days": stability_days,
+            "needs_review": needs_review,
+        }
 
     @staticmethod
     def _clamp(value: float, min_v: float, max_v: float) -> float:

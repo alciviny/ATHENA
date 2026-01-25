@@ -61,7 +61,7 @@ class PerformanceEventModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
     event_type = Column(String, nullable=False) #
-    occurred_at = Column(DateTime, nullable=False) #
+    occurred_at = Column(DateTime(timezone=True), nullable=False) #
     topic = Column(String, nullable=False)      #
     metric = Column(String, nullable=False)     #
     value = Column(Float, nullable=False)       #
@@ -71,7 +71,7 @@ class StudyPlanModel(Base):
     __tablename__ = "study_plans"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    created_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)
     knowledge_nodes = Column(JSON, nullable=False) # Lista de UUIDs
     estimated_duration_minutes = Column(Integer, default=0) #
     focus_level = Column(String, nullable=False) #
