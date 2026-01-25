@@ -1,7 +1,7 @@
 import pytest
 from uuid import uuid4
 from brain.domain.events.study_plan_generated import StudyPlanGenerated
-from brain.domain.entities.StudyPlan import StudyFocusLevel
+from brain.domain.entities.study_plan import StudyFocusLevel
 
 def test_study_plan_generated_creation():
     aggregate_id = uuid4()
