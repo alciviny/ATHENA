@@ -4,7 +4,15 @@ from sqlalchemy.orm import sessionmaker
 from brain.infrastructure.persistence.models import KnowledgeNodeModel, node_dependencies
 from brain.config.settings import Settings
 
+import sys
+import os
 
+# Adiciona o diretório pai (raiz do projeto) ao caminho do Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# ... abaixo seguem os imports originais ...
+from sqlalchemy import create_engine, select
+# etc...
 NODES = {
     "aritmetica": {
         "name": "Aritmética Básica",

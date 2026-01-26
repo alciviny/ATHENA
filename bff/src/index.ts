@@ -1,8 +1,22 @@
 import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import path from 'path';
 import studyRouter from './modules/study/study.router';
 
 const app = express();
+
+// Habilita o CORS de forma mais permissiva para depuração
+app.use(cors());
+
+/*
+// Configuração original mais restritiva
+app.use(cors({
+  origin: 'http://localhost:5173', // Permite apenas requisições deste domínio
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization'], // Cabeçalhos permitidos
+}));
+*/
+
 const PORT = Number(process.env.PORT) || 3000;
 
 // ================= Middlewares =================
