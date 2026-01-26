@@ -52,7 +52,7 @@ class InMemoryPerformanceRepository(PerformanceRepository):
             if e.student_id == student_id and getattr(e, 'knowledge_node_id', None) == node_id
         ]
     
-    async def add_event(self, event: PerformanceEvent) -> None:
+    async def save(self, event: PerformanceEvent) -> None:
         self.events.append(event)
 
 class InMemoryKnowledgeRepository(KnowledgeRepository):
@@ -73,6 +73,12 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
     async def get_by_id(self, node_id: UUID) -> Optional[KnowledgeNode]:
         return self._nodes_by_id.get(node_id)
     
+    async def get_node_by_name(self, name: str) -> Optional[KnowledgeNode]:
+        for node in self.nodes:
+            if node.name == name:
+                return node
+        return None
+        
     async def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
         for node in self.nodes:
             if node.title == title:
