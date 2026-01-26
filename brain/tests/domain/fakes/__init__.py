@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from brain.domain.entities.student import Student, StudentGoal
 from brain.domain.entities.cognitive_profile import CognitiveProfile
-from brain.domain.entities.PerformanceEvent import (
+from brain.domain.entities.performance_event import (
     PerformanceEvent,
     PerformanceMetric,
     PerformanceEventType,
@@ -85,13 +85,15 @@ def fake_performance_event(
 def fake_knowledge_node(
     *,
     node_id: UUID | None = None,
-    title: str = "Test Node",
+    name: str = "Test Node",
+    subject: str = "Test Subject",
     stability: float = 0.0,
     difficulty: float = 5.0,
 ) -> KnowledgeNode:
     return KnowledgeNode(
         id=node_id or uuid4(),
-        title=title,
+        name=name,
+        subject=subject,
         stability=stability,
         difficulty=difficulty,
     )

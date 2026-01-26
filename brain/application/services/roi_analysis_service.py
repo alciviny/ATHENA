@@ -10,8 +10,15 @@ class ROIAnalysisService:
         roi_data = self.engine.calculate_roi_per_subject(student, history)
         report = []
         for subject_name, score in roi_data.items():
+            subject_id = None
+            if hasattr(student, 'subjects'):
+                for subject in student.subjects:
+                    if subject.name == subject_name:
+                        subject_id = subject.id
+                        break
+            
             report.append({
-                "subject_id": None, # ID não está disponível neste fluxo
+                "subject_id": str(subject_id) if subject_id else None,
                 "subject_name": subject_name,
                 "roi_score": score,
                 "status": self._classify(score),

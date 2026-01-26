@@ -1,7 +1,7 @@
 import pytest
 from uuid import uuid4
 from brain.domain.events.performance_analyzed import PerformanceAnalyzed
-from brain.domain.entities.PerformanceEvent import PerformanceMetric
+from brain.domain.entities.performance_event import PerformanceMetric
 
 def test_performance_analyzed_creation():
     aggregate_id = uuid4()  # student_id

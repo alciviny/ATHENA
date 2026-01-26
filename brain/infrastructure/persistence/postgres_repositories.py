@@ -68,6 +68,7 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
                 metric=PerformanceMetric(model.metric),
                 value=model.value,
                 baseline=model.baseline,
+                event_metadata=model.event_metadata or {},
             )
             for model in event_models
         ]
@@ -89,6 +90,7 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
                 metric=PerformanceMetric(model.metric),
                 value=model.value,
                 baseline=model.baseline,
+                event_metadata=model.event_metadata or {},
             )
             for model in event_models
         ]
@@ -107,6 +109,7 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
             metric=event.metric.value,
             value=event.value,
             baseline=event.baseline,
+            event_metadata=event.event_metadata,
         )
         self.db.add(model)
         await self.db.flush()

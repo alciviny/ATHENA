@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
@@ -40,6 +40,7 @@ class PerformanceEvent:
     metric: PerformanceMetric
     value: float
     baseline: float
+    event_metadata: dict = field(default_factory=dict)
 
     # ==============================
     # Domain Semantics

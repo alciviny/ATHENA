@@ -1,6 +1,6 @@
 from brain.domain.services.study_plan_generator import StudyPlanGenerator
 from brain.domain.entities.study_plan import StudyFocusLevel
-from brain.domain.entities.PerformanceEvent import PerformanceMetric
+from brain.domain.entities.performance_event import PerformanceMetric
 
 from brain.domain.policies.rules.low_accuracy_high_difficulty import (
     LowAccuracyHighDifficultyRule,
