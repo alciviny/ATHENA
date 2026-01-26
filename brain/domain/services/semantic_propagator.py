@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 from typing import Iterable
 from brain.application.ports.repositories import (
@@ -29,17 +30,25 @@ class SemanticPropagator:
         """
         Propaga um boost/penalidade preventiva para conceitos semanticamente vizinhos.
         """
-        # Busca vizinhos (Este já era async)
-        neighbor_ids = await self._vector_repo.find_semantically_related(
-            origin_node_id,
-            limit=neighborhood_size,
-        )
+        try:
+            neighbor_ids = await self._vector_repo.find_semantically_related(
+                origin_node_id,
+                limit=neighborhood_size,
+            )
 
-        await self._apply_penalty_to_neighbors(
-            origin_node_id,
-            neighbor_ids,
-            factor,
-        )
+            await self._apply_penalty_to_neighbors(
+                origin_node_id,
+                neighbor_ids,
+                factor,
+            )
+        except Exception as e:
+            logging.error(
+                "Falha ao buscar nós semanticamente relacionados no Qdrant. Origin node ID: %s. Error: %s",
+                origin_node_id,
+                e,
+                exc_info=True,
+            )
+
 
     async def _apply_penalty_to_neighbors(
         self,
@@ -52,12 +61,10 @@ class SemanticPropagator:
             if neighbor_id == origin_node_id:
                 continue
 
-            # --- CORREÇÃO 1: Adicionado 'await' aqui ---
             neighbor_node = await self._node_repo.get_by_id(neighbor_id)
             if not neighbor_node:
                 continue
 
             neighbor_node.apply_penalty(factor=factor)
             
-            # --- CORREÇÃO 2: Adicionado 'await' aqui ---
             await self._node_repo.update(neighbor_node)

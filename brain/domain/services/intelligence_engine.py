@@ -99,6 +99,9 @@ class IntelligenceEngine:
         """
         Inicialização mnemônica do conhecimento.
         """
+        if grade == ReviewGrade.AGAIN:
+            node.weight *= 1.5
+            
         node.stability = self._FSRS_WEIGHTS[grade.value - 1]
         node.difficulty = self._initial_difficulty(grade)
 

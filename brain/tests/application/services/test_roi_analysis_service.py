@@ -18,7 +18,7 @@ def test_classify_high_roi_as_veio_de_ouro():
     
     # Configura o motor para retornar um score de ROI alto para uma matéria
     mock_engine.calculate_roi_per_subject.return_value = {
-        str(subject_id): 0.10
+        "Direito Constitucional": 0.10
     }
 
     # Cria um mock para o estudante com a matéria correspondente

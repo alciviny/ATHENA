@@ -66,6 +66,7 @@ class PerformanceEventModel(Base):
     metric = Column(String, nullable=False)     #
     value = Column(Float, nullable=False)       #
     baseline = Column(Float, nullable=False)    #
+    event_metadata = Column(JSON, nullable=True, default={})
 
 class StudyPlanModel(Base):
     __tablename__ = "study_plans"

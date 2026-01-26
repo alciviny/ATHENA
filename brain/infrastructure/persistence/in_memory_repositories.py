@@ -4,7 +4,7 @@ from datetime import datetime
 
 # Importações de Entidades
 from brain.domain.entities.student import Student
-from brain.domain.entities.PerformanceEvent import PerformanceEvent
+from brain.domain.entities.performance_event import PerformanceEvent
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.entities.study_plan import StudyPlan
 from brain.domain.entities.error_event import ErrorEvent

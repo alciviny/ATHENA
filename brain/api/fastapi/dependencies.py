@@ -63,7 +63,7 @@ async def get_error_event_repository(
 
 
 from brain.domain.services.intelligence_engine import IntelligenceEngine
-from brain.application.ports.repositories import KnowledgeRepository
+from brain.application.ports.repositories import KnowledgeRepository, PerformanceRepository
 
 
 # =========================================================
@@ -129,10 +129,12 @@ async def get_analyze_student_performance_use_case(
 
 
 async def get_record_review_use_case(
-    performance_repo: PostgresPerformanceRepository = Depends(get_performance_repository),
-    knowledge_repo: PostgresKnowledgeRepository = Depends(get_knowledge_repository),
+    performance_repo: PerformanceRepository = Depends(get_performance_repository),
+    knowledge_repo: KnowledgeRepository = Depends(get_knowledge_repository),
+    intelligence_engine: IntelligenceEngine = Depends(get_intelligence_engine),
 ) -> RecordReviewUseCase:
     return RecordReviewUseCase(
-        performance_repo=performance_repo, 
-        node_repo=knowledge_repo
+        performance_repo=performance_repo,
+        node_repo=knowledge_repo,
+        intelligence_engine=intelligence_engine,
     )

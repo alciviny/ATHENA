@@ -50,9 +50,8 @@ def record_review_use_case(
     
     return RecordReviewUseCase(
         node_repo=knowledge_repository,
-        perf_repo=performance_repository,
-        engine=IntelligenceEngine(),
-        propagator=propagator,
+        performance_repo=performance_repository,
+        intelligence_engine=IntelligenceEngine(),
     )
 
 # ==============================================================================
@@ -74,7 +73,7 @@ async def test_python_prepares_state_for_go_worker(
     # Nó difícil, vulnerável a intervenção
     initial_node = KnowledgeNode(
         id=node_id,
-        title="Go Channels",
+        name="Go Channels",
         subject="Go Concurrency", # <--- CORREÇÃO: Campo 'subject' adicionado!
         difficulty=8.0, 
         weight=1.0,
@@ -83,7 +82,12 @@ async def test_python_prepares_state_for_go_worker(
     await knowledge_repository.save(initial_node)
 
     # 2. Ação: Erro Crítico
-    await record_review_use_case.execute(student_id, node_id, ReviewGrade.AGAIN)
+    await record_review_use_case.execute(
+        student_id=student_id,
+        node_id=node_id,
+        success=False,  # <--- CORREÇÃO: Usando o parâmetro booleano correto
+        response_time_seconds=30.0 # Tempo médio para não ser fácil nem difícil
+    )
 
     # 3. Verificação de Contrato (Python side)
     updated_node = await knowledge_repository.get_by_id(node_id)

@@ -12,3 +12,4 @@ qdrant-client>=1.7.0
 pytest-asyncio
 asyncpg
 aiosqlite
+pytest-mock

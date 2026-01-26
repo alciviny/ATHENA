@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from brain.domain.entities.student import Student, StudentGoal
 from brain.domain.entities.cognitive_profile import CognitiveProfile
-from brain.domain.entities.PerformanceEvent import (
+from brain.domain.entities.performance_event import (
     PerformanceEvent,
     PerformanceMetric,
     PerformanceEventType,
