@@ -92,16 +92,16 @@ func (r *PostgresNodeRepository) UpdateNode(
 		UPDATE knowledge_nodes
 		SET
 			weight = $1,
-			next_review_at = $2,
-			stability = $3
+			difficulty = $2,
+			next_review_at = $3
 		WHERE id = $4
 	`
 	cmdTag, err := r.pool.Exec(
 		ctx,
 		query,
 		n.Weight,
+		n.Difficulty,
 		n.NextReviewAt,
-		n.Stability,
 		n.ID,
 	)
 	if err != nil {

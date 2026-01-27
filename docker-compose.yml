@@ -39,6 +39,7 @@ services:
       - ./brain:/app/brain # Mapeia o código local para dentro do container
     ports:
       - "8000:8000" # Libera acesso localhost:8000 para você testar
+    command: sh -c "python /app/brain/create_db.py && uvicorn brain.api.fastapi.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       # Conecta no Postgres interno
       DATABASE_URL: postgresql://user:pass@postgres:5432/athena
