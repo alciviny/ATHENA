@@ -1,16 +1,17 @@
 import axios from 'axios';
 import type { StudyPlanDTO } from '../types/athena';
 
-// Aponta para o BFF (Backend for Frontend)
-const api = axios.create({
-  baseURL: 'http://localhost:3000', // Porta padrão do Express/BFF
-});
+// O proxy no vite.config.ts cuidará do redirecionamento.
+const api = axios.create({});
 
 export const studyService = {
   /**
-   * Solicita ao Brain a geração de um plano adaptativo
+   * Solicita ao Brain a geração de um plano adaptativo.
+   * Assume um studentId fixo para este exemplo.
    */
-  generatePlan: async (studentId: string): Promise<StudyPlanDTO> => {
+  generatePlan: async (): Promise<StudyPlanDTO> => {
+    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    // O /api/ no início da URL será interceptado pelo proxy do Vite.
     const response = await api.post('/api/study/generate', { studentId });
     return response.data;
   },
@@ -29,3 +30,4 @@ export const studyService = {
     });
   },
 };
+
