@@ -13,3 +13,4 @@ pytest-asyncio
 asyncpg
 aiosqlite
 pytest-mock
+google-generativeai

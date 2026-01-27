@@ -45,6 +45,13 @@ func processNode(
 	node domain.KnowledgeNode,
 	repo *infra.PostgresNodeRepository,
 ) {
+	// Se o peso é crítico (ex: > 2.0), aciona uma intervenção.
+	// Este é o gatilho para o nosso ciclo de validação.
+	if node.Weight >= 2.0 {
+		processIntervention(ctx, node, repo)
+		return // Finaliza o processamento para este nó aqui.
+	}
+
 	now := time.Now().UTC()
 
 	elapsedDays := domain.ElapsedDays(node.LastReviewedAt, now)
@@ -63,6 +70,35 @@ func processNode(
 			R,
 		)
 	}
+}
+
+// processIntervention simula uma ação corretiva em um nó problemático.
+func processIntervention(
+	ctx context.Context,
+	node domain.KnowledgeNode,
+	repo *infra.PostgresNodeRepository,
+) {
+	log.Printf("🔥 Iniciando intervenção no Node %s (peso atual: %.2f)", node.ID, node.Weight)
+
+	// Simula um trabalho pesado (ex: consulta a um LLM, análise complexa)
+	time.Sleep(2 * time.Second)
+
+	// A intervenção foi um sucesso, então resetamos o peso do nó.
+	node.Weight = 1.0
+	// A data de revisão também é atualizada para evitar re-processamento imediato.
+	node.NextReviewAt = time.Now().UTC().Add(5 * time.Minute)
+
+	// Salva o estado "resolvido" no banco de dados.
+	if err := repo.UpdateNode(ctx, node); err != nil {
+		log.Printf(
+			"[ERROR][INTERVENTION] Falha ao atualizar node %s: %v",
+			node.ID,
+			err,
+		)
+		return
+	}
+
+	log.Printf("✅ Intervenção concluída. Node %s peso resetado para 1.0", node.ID)
 }
 
 func applyPreventiveBoost(
