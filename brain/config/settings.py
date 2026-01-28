@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     USE_IN_MEMORY_DB: bool = False
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    QDRANT_URL: str = "http://localhost:6333"
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
     QDRANT_API_KEY: str | None = None
     QDRANT_COLLECTION: str = "athena_knowledge"
 

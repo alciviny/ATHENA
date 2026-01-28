@@ -4,6 +4,8 @@ from typing import List
 from uuid import UUID
 from enum import Enum
 
+from brain.domain.entities.knowledge_node import KnowledgeNode
+
 
 class StudyFocusLevel(str, Enum):
     """
@@ -27,7 +29,7 @@ class StudyPlan:
     created_at: datetime
 
     # Conteúdos selecionados do grafo
-    knowledge_nodes: List[UUID] = field(default_factory=list)
+    knowledge_nodes: List[KnowledgeNode] = field(default_factory=list)
 
     # Duração estimada total do plano
     estimated_duration_minutes: int = 0

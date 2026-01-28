@@ -4,7 +4,6 @@ import { studyService } from './services/studyService';
 import type { StudyPlanDTO } from './types/athena';
 import { StudySession } from './components/StudySession'; // <--- Importe aqui
 
-const MOCK_STUDENT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 
 // Estados possíveis da aplicação
 type AppView = 'DASHBOARD' | 'SESSION' | 'COMPLETED';
@@ -17,7 +16,7 @@ function App() {
   const handleGeneratePlan = async () => {
     setLoading(true);
     try {
-      const newPlan = await studyService.generatePlan(MOCK_STUDENT_ID);
+      const newPlan = await studyService.generatePlan();
       setPlan(newPlan);
     } catch (error) {
       console.error("Falha ao gerar plano:", error);
@@ -122,7 +121,7 @@ function App() {
             <div className="flex items-start justify-between mb-8">
               <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  Plano Tático Gerado
+                  <span>Plano Tático Gerado</span>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs uppercase tracking-wider font-bold border border-emerald-500/20">
                     {plan.focus_level}
                   </span>
@@ -139,15 +138,13 @@ function App() {
 
             <div className="space-y-3 mb-8">
               <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Sequência de Estudo</h3>
-              {plan.knowledge_nodes.map((nodeId, index) => (
-                <div key={nodeId} className="flex items-center p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
+              {plan.knowledge_nodes.map((node, index) => (
+                <div key={node.id} className="flex items-center p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-800 text-slate-400 font-mono text-sm border border-slate-700">
                     {index + 1}
                   </div>
                   <div className="ml-4">
-                    <p className="font-medium text-slate-200">
-                       Tópico {nodeId.substring(0, 8)}...
-                    </p>
+                    <p className="font-medium text-slate-200">{node.title}</p>
                   </div>
                 </div>
               ))}

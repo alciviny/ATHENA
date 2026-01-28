@@ -1,205 +1,132 @@
-import { useState, useEffect, useRef } from 'react';
-import { Clock, ArrowLeft, Loader, AlertTriangle } from 'lucide-react';
-import { ReviewGrade } from '../types/athena';
-import type { StudyPlanDTO, ReviewGradeValue, KnowledgeNode } from '../types/athena';
+import { useState, useEffect } from 'react';
+import { X, Lightbulb, Sparkles, ThumbsUp, ThumbsDown, Repeat, ChevronsRight } from 'lucide-react';
+import type { StudyPlanDTO, KnowledgeNode, ReviewGrade } from '../types/athena';
 import { studyService } from '../services/studyService';
-import clsx from 'clsx';
 
 interface StudySessionProps {
+  plan: StudyPlanDTO;
   onComplete: () => void;
   onExit: () => void;
 }
 
-export function StudySession({ onComplete, onExit }: StudySessionProps) {
-  // Estado da busca de dados
-  const [plan, setPlan] = useState<StudyPlanDTO | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Estado do progresso da sessão
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);
-  const [startTime, setStartTime] = useState(Date.now());
-  const [elapsed, setElapsed] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+type SessionPhase = 'RECALL' | 'GRADE';
 
-  // Timer visual
-  const timerRef = useRef<number>(0);
+export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
+  const [currentNodeIndex, setCurrentNodeIndex] = useState(0);
+  const [phase, setPhase] = useState<SessionPhase>('RECALL');
+  const [reviewStartTime, setReviewStartTime] = useState(0);
 
-  // Efeito para buscar o plano de estudos
-  useEffect(() => {
-    const fetchPlan = async () => {
-      try {
-        setIsLoading(true);
-        const fetchedPlan = await studyService.generatePlan();
-        setPlan(fetchedPlan);
-        setError(null);
-      } catch (e) {
-        console.error("Falha ao gerar plano de estudos:", e);
-        setError("Erro ao gerar plano. O Cérebro está offline?");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchPlan();
-  }, []);
-
-  const currentNode: KnowledgeNode | undefined = plan?.knowledge_nodes[currentIndex];
-  const totalNodes = plan?.knowledge_nodes.length ?? 0;
+  const currentNode: KnowledgeNode = plan.knowledge_nodes[currentNodeIndex];
+  const progress = ((currentNodeIndex + 1) / plan.knowledge_nodes.length) * 100;
 
   useEffect(() => {
-    if (!plan) return; // Não inicia o timer se não houver plano
-
-    // Inicia contagem de tempo para o card atual
-    setStartTime(Date.now());
-    setElapsed(0);
-    
-    timerRef.current = window.setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(timerRef.current);
-  }, [currentIndex, plan]);
+    setPhase('RECALL');
+  }, [currentNodeIndex]);
 
   const handleReveal = () => {
-    setIsAnswerRevealed(true);
+    setPhase('GRADE');
+    setReviewStartTime(Date.now());
   };
 
-  const handleGrade = async (grade: ReviewGradeValue) => {
-    if (isSubmitting || !currentNode) return;
-    setIsSubmitting(true);
-    clearInterval(timerRef.current);
-
-    const timeSpent = (Date.now() - startTime) / 1000; // Segundos exatos
-
+  const handleGrade = async (grade: ReviewGrade) => {
+    const responseTime = (Date.now() - reviewStartTime) / 1000; // em segundos
+    
     try {
-      await studyService.submitReview(currentNode.id, grade, timeSpent);
-
-      if (currentIndex < totalNodes - 1) {
-        // Próximo card
-        setCurrentIndex((prev) => prev + 1);
-        setIsAnswerRevealed(false);
-      } else {
-        // Fim da sessão
-        onComplete();
-      }
+      await studyService.submitReview(currentNode.id, grade, responseTime);
     } catch (error) {
-      console.error("Erro ao enviar review:", error);
-      alert("Erro de conexão. Tente novamente.");
-    } finally {
-      setIsSubmitting(false);
+      console.error("Erro ao submeter revisão:", error);
+      // Opcional: Adicionar um toast/alerta para o usuário
+    }
+    
+    // Avança para o próximo card ou finaliza a sessão
+    if (currentNodeIndex < plan.knowledge_nodes.length - 1) {
+      setCurrentNodeIndex(currentNodeIndex + 1);
+    } else {
+      onComplete();
     }
   };
 
-  // Cores dos botões de SRS baseadas no Anki/SuperMemo
-  const gradeButtons = [
-    { label: 'Errei', value: ReviewGrade.AGAIN, color: 'bg-rose-600 hover:bg-rose-500', shortcut: '1' },
-    { label: 'Difícil', value: ReviewGrade.HARD, color: 'bg-orange-600 hover:bg-orange-500', shortcut: '2' },
-    { label: 'Bom', value: ReviewGrade.GOOD, color: 'bg-emerald-600 hover:bg-emerald-500', shortcut: '3' },
-    { label: 'Fácil', value: ReviewGrade.EASY, color: 'bg-blue-600 hover:bg-blue-500', shortcut: '4' },
-  ];
-
-  // Renderização de Loading
-  if (isLoading) {
-    return (
-      <div className="flex flex-col h-screen bg-slate-950 text-slate-100 items-center justify-center">
-        <Loader className="w-12 h-12 animate-spin text-emerald-400 mb-4" />
-        <p className="text-lg text-slate-400">Consultando o Mentor Athena...</p>
-      </div>
-    );
-  }
-
-  // Renderização de Erro
-  if (error) {
-    return (
-      <div className="flex flex-col h-screen bg-slate-950 text-slate-100 items-center justify-center">
-        <AlertTriangle className="w-12 h-12 text-rose-500 mb-4" />
-        <p className="text-lg text-slate-400">{error}</p>
-        <button onClick={onExit} className="mt-6 px-4 py-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors">
-          Voltar
-        </button>
-      </div>
-    );
-  }
-  
-  if (!plan || !currentNode) {
-    return null; // ou um estado de plano vazio
-  }
-
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
-      {/* Topbar Focada */}
-      <header className="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900/50">
-        <div className="flex items-center gap-4">
-          <button onClick={onExit} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-slate-300">Modo Foco</span>
-            <span className="text-xs text-slate-500">
-              Card {currentIndex + 1} de {totalNodes}
-            </span>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-amber-500/30">
+      
+      {/* Header da Sessão */}
+      <header className="w-full max-w-2xl fixed top-0 left-1/2 -translate-x-1/2 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-sm text-amber-400">{`${currentNodeIndex + 1}/${plan.knowledge_nodes.length}`}</span>
+            <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-amber-500 transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full text-sm border border-emerald-500/20">
-          <Clock className="w-4 h-4" />
-          {new Date(elapsed * 1000).toISOString().substr(14, 5)}
+          <button onClick={onExit} className="text-slate-500 hover:text-slate-300">
+            <X className="w-6 h-6" />
+          </button>
         </div>
       </header>
 
-      {/* Área Central (O Card) */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6 relative">
-        <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl min-h-[400px] flex flex-col justify-between">
+      <main className="w-full max-w-2xl flex-1 flex flex-col justify-center items-center">
+        {/* Card de Estudo */}
+        <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-8">
           
-          <div className="space-y-6 text-center">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-              {`Dificuldade: ${currentNode.difficulty.toFixed(2)}`}
-            </h2>
-            <div className="text-2xl md:text-3xl font-medium text-white">
-              {currentNode.title}
-            </div>
-
-            {isAnswerRevealed && (
-              <div className="pt-8 border-t border-slate-800 animate-fade-in">
-                <p className="text-lg text-slate-300">
-                  {currentNode.context}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Controles */}
-          <div className="mt-12">
-            {!isAnswerRevealed ? (
+          {/* Fase de "Recall" (Lembrar) */}
+          {phase === 'RECALL' && (
+            <div className="text-center space-y-6 animate-fade-in">
+              <h1 className="text-3xl font-bold text-white">{currentNode.title}</h1>
+              <p className="text-slate-400">Tente se lembrar do conceito principal.</p>
               <button 
                 onClick={handleReveal}
-                className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl border border-slate-700 transition-all active:scale-[0.98]"
+                className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg shadow-amber-900/20 transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
               >
-                Mostrar Resposta (Espaço)
+                <Lightbulb className="w-5 h-5" />
+                Revelar Conteúdo
               </button>
-            ) : (
-              <div className="grid grid-cols-4 gap-3">
-                {gradeButtons.map((btn) => (
-                  <button
-                    key={btn.value}
-                    onClick={() => handleGrade(btn.value)}
-                    disabled={isSubmitting}
-                    className={clsx(
-                      "py-4 rounded-xl font-bold text-white transition-all active:scale-[0.95] flex flex-col items-center gap-1",
-                      btn.color,
-                      isSubmitting && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <span>{btn.label}</span>
-                    <span className="text-[10px] font-mono opacity-60">({btn.shortcut})</span>
-                  </button>
-                ))}
+            </div>
+          )}
+
+          {/* Fase de "Grade" (Avaliar) */}
+          {phase === 'GRADE' && (
+            <div className="space-y-6 animate-fade-in">
+              <h1 className="text-2xl font-bold text-white border-b border-slate-700 pb-3 mb-4">{currentNode.title}</h1>
+              <p className="text-slate-300 whitespace-pre-wrap">{currentNode.context}</p>
+              
+              <div className="pt-6">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 text-center">Como você se sentiu ao lembrar disso?</h3>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <GradeButton onClick={() => handleGrade(1)} color="red" icon={Repeat}>De novo</GradeButton>
+                  <GradeButton onClick={() => handleGrade(2)} color="orange" icon={ThumbsDown}>Difícil</GradeButton>
+                  <GradeButton onClick={() => handleGrade(3)} color="sky" icon={ThumbsUp}>Bom</GradeButton>
+                  <GradeButton onClick={() => handleGrade(4)} color="emerald" icon={Sparkles}>Fácil</GradeButton>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
         </div>
       </main>
+
     </div>
+  );
+}
+
+// Componente auxiliar para os botões de avaliação
+function GradeButton({ children, onClick, color, icon: Icon }) {
+  const colorClasses = {
+    red: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20',
+    orange: 'bg-orange-500/10 border-orange-500/20 text-orange-400 hover:bg-orange-500/20',
+    sky: 'bg-sky-500/10 border-sky-500/20 text-sky-400 hover:bg-sky-500/20',
+    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20',
+  };
+
+  return (
+    <button 
+      onClick={onClick}
+      className={`p-4 rounded-lg font-semibold w-full transition-colors flex flex-col items-center justify-center text-center border ${colorClasses[color]}`}
+    >
+      <Icon className="w-6 h-6 mb-2" />
+      {children}
+    </button>
   );
 }
