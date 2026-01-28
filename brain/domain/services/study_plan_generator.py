@@ -82,7 +82,7 @@ class StudyPlanGenerator:
             id=uuid4(),
             student_id=student.id,
             created_at=datetime.now(timezone.utc),
-            knowledge_nodes=[node.id for node in context["target_nodes"]],
+            knowledge_nodes=context["target_nodes"],
             estimated_duration_minutes=estimated_duration,
             focus_level=context["focus_level"],
         )

@@ -25,4 +25,6 @@ export interface StudyPlanDTO {
   knowledge_nodes: KnowledgeNode[];
   focus_level: number;
   student_id: string;
+  created_at: string;
+  estimated_duration_minutes: number;
 }

@@ -248,7 +248,7 @@ class PostgresStudyPlanRepository(ports.StudyPlanRepository):
             id=study_plan.id,
             student_id=study_plan.student_id,
             created_at=study_plan.created_at,
-            knowledge_nodes=[str(node_id) for node_id in study_plan.knowledge_nodes],
+            knowledge_nodes=[str(node.id) for node in study_plan.knowledge_nodes],
             estimated_duration_minutes=study_plan.estimated_duration_minutes,
             focus_level=study_plan.focus_level.value
         )
