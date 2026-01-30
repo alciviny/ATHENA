@@ -95,7 +95,7 @@ class GenerateStudyPlanUseCase:
             print("Step 4: Generating study items with AI + RAG (Throttled)...")
             
             # CRÍTICO: Limita a 3 requisições simultâneas para não estourar a cota (429)
-            sem = asyncio.Semaphore(3) 
+            sem = asyncio.Semaphore(1) 
 
             async def generate_with_limit(node):
                 async with sem:

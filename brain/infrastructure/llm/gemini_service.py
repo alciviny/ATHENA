@@ -1,8 +1,10 @@
 import logging
+import asyncio
 import json
 from typing import List, Dict, Any
 
 import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field
 
 from brain.application.ports.ai_service import AIService
@@ -10,115 +12,107 @@ from brain.domain.entities.error_event import ErrorEvent
 
 logger = logging.getLogger(__name__)
 
-
 class FlashcardOutput(BaseModel):
     pergunta: str = Field(..., description="Enunciado da questão")
-    opcoes: List[str] = Field(
-        ..., description="Lista de 4 alternativas", min_items=4, max_items=4
-    )
-    correta_index: int = Field(
-        ..., description="Índice da alternativa correta (0-3)", ge=0, le=3
-    )
+    opcoes: List[str] = Field(..., description="Lista de 4 alternativas", min_items=4, max_items=4)
+    correta_index: int = Field(..., description="Índice da alternativa correta (0-3)", ge=0, le=3)
     explicacao: str = Field(..., description="Explicação curta da resposta correta")
 
-
 class GeminiService(AIService):
-    def __init__(self, api_key: str, model: str = "models/gemini-pro-latest"):
+    def __init__(self, api_key: str, model: str = "models/gemini-1.5-flash"):
+        # FORÇANDO O FLASH: Mesmo que venha outro valor, o default é o Flash.
+        # Se você estiver passando "models/gemini-pro-latest" pelo settings.py, mude lá também!
         genai.configure(api_key=api_key)
+        self.model_name = model
         self.model = genai.GenerativeModel(model_name=model)
+        logger.info(f"GeminiService inicializado com modelo: {self.model_name}")
+
+    async def _retry_operation(self, func, *args, **kwargs):
+        """Tenta executar uma operação com backoff exponencial em caso de erro 429."""
+        retries = 5 # Aumentei para 5 tentativas
+        base_delay = 5 # Começa esperando 5 segundos (mais conservador)
+        
+        for attempt in range(retries):
+            try:
+                return await func(*args, **kwargs)
+            except google_exceptions.ResourceExhausted:
+                wait_time = base_delay * (2 ** attempt)
+                logger.warning(f"Cota excedida (429). Tentativa {attempt+1}/{retries}. Aguardando {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            except Exception as e:
+                logger.error(f"Erro não relacionado a cota: {e}")
+                raise e
+        
+        raise Exception("Falha após múltiplas tentativas devido a limite de cota.")
 
     async def generate_embedding(self, text: str) -> List[float]:
-        try:
-            # O modelo 'embedding-001' é o padrão para embeddings no Google
-            result = genai.embed_content(
+        async def _call_embed():
+            # Embeddings também sofrem rate limit, protegemos aqui
+            result = await asyncio.to_thread(
+                genai.embed_content,
                 model="models/embedding-001",
                 content=text,
-                task_type="retrieval_query",
+                task_type="retrieval_query"
             )
             return result['embedding']
-        except Exception as exc:
-            logger.error(f"Erro ao gerar embedding no Gemini: {exc}")
+
+        try:
+            return await self._retry_operation(_call_embed)
+        except Exception as e:
+            logger.error(f"Erro fatal no embedding: {e}")
             return []
 
-    async def analyze_student_errors(
-        self,
-        errors: List[ErrorEvent],
-        subject: str,
-    ) -> str:
+    async def analyze_student_errors(self, errors: List[ErrorEvent], subject: str) -> str:
         if not errors:
             return "Sem erros suficientes para análise."
 
-        errors_desc = "\n".join(
-            f"- Tópico: {e.topic} (Severidade: {e.severity})"
-            for e in errors
-        )
+        errors_desc = "\n".join(f"- Tópico: {e.topic} (Severidade: {e.severity})" for e in errors)
+        prompt = f"Analise erros em {subject}:\n{errors_desc}\nProponha correção."
 
-        prompt = f"""
-Você é um tutor pedagógico especialista.
-
-O aluno cometeu os seguintes erros em {subject}:
-{errors_desc}
-
-Analise a causa raiz desses erros e proponha um plano de correção prático.
-Seja claro, objetivo e encorajador.
-"""
-
-        try:
-            # O SDK do Gemini (geralmente) suporta chamadas síncronas que podem ser "envolvidas"
-            # mas para manter a simplicidade e seguindo o padrão da interface:
-            response = self.model.generate_content(prompt)
+        async def _call_analyze():
+            response = await asyncio.to_thread(self.model.generate_content, prompt)
             return response.text
 
-        except Exception as exc:
-            logger.error(f"Erro no Gemini (analyze_student_errors): {exc}")
-            return "Não foi possível gerar a análise no momento."
+        try:
+            return await self._retry_operation(_call_analyze)
+        except:
+            return "Análise indisponível."
 
-    async def generate_flashcard(
-        self,
-        topic: str,
-        difficulty: int,
-        context: str = "",
-    ) -> Dict[str, Any]:
+    async def generate_flashcard(self, topic: str, difficulty: int, context: str = "") -> Dict[str, Any]:
         context_prompt = (
-            f"Use EXCLUSIVAMENTE o seguinte contexto como base:\n{context}"
-            if context
-            else "Use conhecimento acadêmico consolidado."
+            f"Contexto:\n{context}" if context else "Use conhecimento acadêmico."
         )
 
         prompt = f"""
-Você é um gerador de questões educacionais.
-Crie uma questão de múltipla escolha sobre o tópico: "{topic}"
+        Crie questão múltipla escolha sobre "{topic}" (Dif: {difficulty}/5).
+        {context_prompt}
+        JSON OBRIGATÓRIO:
+        {{
+          "pergunta": "...",
+          "opcoes": ["...", "...", "...", "..."],
+          "correta_index": 0,
+          "explicacao": "..."
+        }}
+        """
 
-Nível de dificuldade: {difficulty}/5
-
-{context_prompt}
-
-Retorne APENAS o código JSON, dentro de um bloco de código markdown, com a seguinte estrutura:
-{{
-  "pergunta": "...",
-  "opcoes": ["...", "...", "...", "..."],
-  "correta_index": 0,
-  "explicacao": "..."
-}}
-"""
+        async def _call_generate():
+            resp = await asyncio.to_thread(self.model.generate_content, prompt)
+            content = resp.text
+            # Limpeza robusta do JSON
+            json_str = content.strip()
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
+                    json_str = json_str[4:]
+            return FlashcardOutput.model_validate_json(json_str.strip()).model_dump()
 
         try:
-            response = self.model.generate_content(prompt)
-
-            # Extrair o JSON de dentro do bloco de código markdown
-            content = response.text
-            json_str = content.strip().lstrip("```json").rstrip("```").strip()
-
-            flashcard = FlashcardOutput.model_validate_json(json_str)
-
-            return flashcard.model_dump()
-
+            return await self._retry_operation(_call_generate)
         except Exception as exc:
-            logger.error(f"Erro ao gerar flashcard com Gemini: {exc}")
-
+            logger.error(f"Erro flashcard: {exc}")
             return {
-                "pergunta": "Erro ao gerar questão.",
-                "opcoes": ["-", "-", "-", "-"],
+                "pergunta": f"Erro ao gerar: {topic}",
+                "opcoes": ["Tente novamente", "Erro na IA", "Verifique logs", "Wait"],
                 "correta_index": 0,
-                "explicacao": "Falha ao comunicar com o serviço de IA.",
+                "explicacao": "Falha na comunicação com a IA."
             }
