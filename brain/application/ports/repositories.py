@@ -88,6 +88,13 @@ class KnowledgeVectorRepository(ABC):
     Nenhuma regra de negócio deve viver aqui.
     """
     @abstractmethod
+    async def search_context(self, query_vector: List[float], limit: int = 3) -> str:
+        """
+        Busca trechos de texto relevantes usando um vetor de consulta.
+        """
+        pass
+
+    @abstractmethod
     async def find_semantically_related(
         self,
         reference_node_id: UUID,

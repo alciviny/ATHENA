@@ -24,6 +24,15 @@ class MockAIService(AIService):
         """
         self.delay_seconds = delay_seconds
 
+    async def generate_embedding(self, text: str) -> List[float]:
+        """
+        Simula a geração de um embedding. Retorna um vetor fixo de 768 dimensões.
+        """
+        if self.delay_seconds > 0:
+            await asyncio.sleep(self.delay_seconds)
+        
+        return [0.1] * 768
+
     async def generate_flashcard(
         self, topic: str, difficulty: int, context: str
     ) -> Dict[str, Any]:

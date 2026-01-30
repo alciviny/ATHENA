@@ -86,18 +86,18 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
             )
             return []
 
-    async def search_context(self, query: str, limit: int = 3) -> str:
+    async def search_context(self, query_vector: List[float], limit: int = 3) -> str:
         """
         Busca trechos de texto relevantes no banco vetorial para servirem de
         'Grounding' (Base) para a IA. Isso reduz alucinações.
         """
-        if not query:
+        if not query_vector:
             return ""
 
         try:
             results = await self._client.search(
                 collection_name=self._collection,
-                query_text=query,   # ✔ Qdrant >= 1.7 suporta busca textual direta
+                query_vector=query_vector,
                 limit=limit,
             )
 

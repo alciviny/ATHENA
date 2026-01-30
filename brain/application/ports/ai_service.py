@@ -41,3 +41,10 @@ class AIService(ABC):
             - explicacao: str
         """
         pass
+
+    @abstractmethod
+    async def generate_embedding(self, text: str) -> List[float]:
+        """
+        Gera o vetor (embedding) para um texto.
+        """
+        pass
