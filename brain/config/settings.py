@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION: str = "athena_knowledge"
 
     GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "models/gemini-pro-latest"
     # OPENAI_API_KEY: str | None = None  # Deprecated
 
     @computed_field

@@ -135,7 +135,10 @@ def get_ai_service(settings: Settings = Depends(get_settings)) -> AIService:
     if not settings.GEMINI_API_KEY:
         from brain.infrastructure.llm.mock_ai_service import MockAIService
         return MockAIService()
-    return GeminiService(api_key=settings.GEMINI_API_KEY)
+    return GeminiService(
+        api_key=settings.GEMINI_API_KEY,
+        model=settings.GEMINI_MODEL
+    )
 
 def get_intelligence_engine() -> IntelligenceEngine:
     return IntelligenceEngine()

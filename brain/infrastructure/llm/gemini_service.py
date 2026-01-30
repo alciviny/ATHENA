@@ -27,6 +27,19 @@ class GeminiService(AIService):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name=model)
 
+    async def generate_embedding(self, text: str) -> List[float]:
+        try:
+            # O modelo 'embedding-001' é o padrão para embeddings no Google
+            result = genai.embed_content(
+                model="models/embedding-001",
+                content=text,
+                task_type="retrieval_query",
+            )
+            return result['embedding']
+        except Exception as exc:
+            logger.error(f"Erro ao gerar embedding no Gemini: {exc}")
+            return []
+
     async def analyze_student_errors(
         self,
         errors: List[ErrorEvent],

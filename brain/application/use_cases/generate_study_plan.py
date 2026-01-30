@@ -1,5 +1,12 @@
-# ... imports anteriores ...
-# Adicione o import do repositório vetorial
+import sys
+import math
+from uuid import UUID
+from typing import List
+from datetime import datetime, timezone
+import asyncio
+
+from brain.domain.services.study_plan_generator import StudyPlanGenerator
+from brain.domain.policies.adaptive_rule import AdaptiveRule
 from brain.application.ports.repositories import (
     StudentRepository,
     PerformanceRepository,
@@ -84,28 +91,36 @@ class GenerateStudyPlanUseCase:
             )
             print(f"Study plan generated with {len(study_plan.knowledge_nodes)} nodes.")
 
-            # 4. Gerar conteúdo COM RAG e EM PARALELO
-            print("Step 4: Generating study items with AI + RAG...")
+            # 4. Gerar conteúdo COM RAG e CONTROLE DE FLUXO (Semáforo)
+            print("Step 4: Generating study items with AI + RAG (Throttled)...")
             
-            ai_tasks = []
-            for node in study_plan.knowledge_nodes:
-                # AQUI ESTÁ A MÁGICA:
-                # Buscamos contexto real no Qdrant sobre o tópico
-                print(f"Fetching context for: {node.name}")
-                rag_context = await self.vector_repo.search_context(query=node.name, limit=2)
-                
-                # Se não achar nada, usa um fallback
-                final_context = rag_context if rag_context else f"Conceitos fundamentais de {node.name}"
+            # CRÍTICO: Limita a 3 requisições simultâneas para não estourar a cota (429)
+            sem = asyncio.Semaphore(3) 
 
-                task = self.ai_service.generate_flashcard(
-                    topic=node.name,
-                    difficulty=int(node.difficulty * 5),
-                    context=final_context # <--- Passamos o texto real do livro/pdf
-                )
-                ai_tasks.append(task)
+            async def generate_with_limit(node):
+                async with sem:
+                    # Gera embedding para a busca (RAG)
+                    query_vector = await self.ai_service.generate_embedding(node.name)
+                    
+                    # Busca contexto (RAG) usando o vetor gerado
+                    rag_context = await self.vector_repo.search_context(query_vector=query_vector, limit=2)
+                    final_context = rag_context if rag_context else f"Conceitos fundamentais de {node.name}"
+                    
+                    # Chama a IA (protegido pelo semáforo)
+                    return await self.ai_service.generate_flashcard(
+                        topic=node.name,
+                        difficulty=int(node.difficulty * 5),
+                        context=final_context
+                    )
 
+            # Cria a lista de tarefas, mas agora elas respeitam o semáforo
+            ai_tasks = [generate_with_limit(node) for node in study_plan.knowledge_nodes]
+
+            # Dispara! O tempo total será um pouco maior que o paralelo puro, 
+            # mas garantido que não vai dar erro 429.
             generated_contents = await asyncio.gather(*ai_tasks)
-            print(f"Generated {len(generated_contents)} flashcards.")
+            
+            print(f"Generated {len(generated_contents)} flashcards safely.")
 
             study_items = []
             for i, node in enumerate(study_plan.knowledge_nodes):
