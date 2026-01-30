@@ -162,6 +162,7 @@ async def get_generate_study_plan_use_case(
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     study_plan_repo: ports.StudyPlanRepository = Depends(get_study_plan_repository),
     cognitive_profile_repo: ports.CognitiveProfileRepository = Depends(get_cognitive_profile_repository),
+    ai_service: AIService = Depends(get_ai_service),
 ) -> GenerateStudyPlanUseCase:
     return GenerateStudyPlanUseCase(
         student_repo=student_repo,
@@ -169,6 +170,7 @@ async def get_generate_study_plan_use_case(
         knowledge_repo=knowledge_repo,
         study_plan_repo=study_plan_repo,
         cognitive_profile_repo=cognitive_profile_repo,
+        ai_service=ai_service,
         adaptive_rules=[],  # TODO: Inject real rules
     )
 

@@ -1,18 +1,9 @@
+from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
-
-from brain.application.use_cases.generate_study_plan import (
-    GenerateStudyPlanUseCase,
-    StudentNotFoundError,
-    CognitiveProfileNotFoundError,
-)
-from brain.application.use_cases.record_review import RecordReviewUseCase
-from brain.api.fastapi.dependencies import (
-    get_generate_study_plan_use_case,
-    get_record_review_use_case,
-)
 from pydantic import BaseModel
 
+# ... imports existentes ...
 
 router = APIRouter()
 
@@ -20,22 +11,9 @@ class ReviewSchema(BaseModel):
     student_id: UUID
     success: bool
     response_time_seconds: float = 0.0
+    grade: Optional[int] = None  # Campo novo
 
-@router.post("/generate-plan/{student_id}")
-async def generate_plan(
-    student_id: UUID, 
-    use_case: GenerateStudyPlanUseCase = Depends(get_generate_study_plan_use_case)
-):
-    try:
-        study_plan = await use_case.execute(student_id)
-        return study_plan
-    except StudentNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except CognitiveProfileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
-
+# ... rota generate-plan ...
 
 @router.post("/review/{node_id}")
 async def record_review(
@@ -49,9 +27,12 @@ async def record_review(
             node_id=str(node_id),
             success=review_data.success,
             response_time_seconds=review_data.response_time_seconds,
+            explicit_grade=review_data.grade # Passando o valor
         )
         return updated_node
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        # Log real error here in production
+        print(f"Error processing review: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")

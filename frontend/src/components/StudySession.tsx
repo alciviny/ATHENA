@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Lightbulb, Sparkles, ThumbsUp, ThumbsDown, Repeat, ChevronsRight } from 'lucide-react';
-import type { StudyPlanDTO, KnowledgeNode, ReviewGrade } from '../types/athena';
+import type { StudyPlanDTO, StudyItem, ReviewGrade } from '../types/athena';
 import { studyService } from '../services/studyService';
 
 interface StudySessionProps {
@@ -16,8 +16,8 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const [phase, setPhase] = useState<SessionPhase>('RECALL');
   const [reviewStartTime, setReviewStartTime] = useState(0);
 
-  const currentNode: KnowledgeNode = plan.knowledge_nodes[currentNodeIndex];
-  const progress = ((currentNodeIndex + 1) / plan.knowledge_nodes.length) * 100;
+  const currentNode: StudyItem = plan.study_items[currentNodeIndex];
+  const progress = ((currentNodeIndex + 1) / plan.study_items.length) * 100;
 
   useEffect(() => {
     setPhase('RECALL');
@@ -39,7 +39,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
     }
     
     // Avança para o próximo card ou finaliza a sessão
-    if (currentNodeIndex < plan.knowledge_nodes.length - 1) {
+    if (currentNodeIndex < plan.study_items.length - 1) {
       setCurrentNodeIndex(currentNodeIndex + 1);
     } else {
       onComplete();
@@ -53,7 +53,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
       <header className="w-full max-w-2xl fixed top-0 left-1/2 -translate-x-1/2 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="font-mono text-sm text-amber-400">{`${currentNodeIndex + 1}/${plan.knowledge_nodes.length}`}</span>
+            <span className="font-mono text-sm text-amber-400">{`${currentNodeIndex + 1}/${plan.study_items.length}`}</span>
             <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-amber-500 transition-all duration-500"
@@ -74,7 +74,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
           {/* Fase de "Recall" (Lembrar) */}
           {phase === 'RECALL' && (
             <div className="text-center space-y-6 animate-fade-in">
-              <h1 className="text-3xl font-bold text-white">{currentNode.title}</h1>
+              <h1 className="text-3xl font-bold text-white">{currentNode.question}</h1>
               <p className="text-slate-400">Tente se lembrar do conceito principal.</p>
               <button 
                 onClick={handleReveal}
@@ -89,8 +89,8 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
           {/* Fase de "Grade" (Avaliar) */}
           {phase === 'GRADE' && (
             <div className="space-y-6 animate-fade-in">
-              <h1 className="text-2xl font-bold text-white border-b border-slate-700 pb-3 mb-4">{currentNode.title}</h1>
-              <p className="text-slate-300 whitespace-pre-wrap">{currentNode.context}</p>
+              <h1 className="text-2xl font-bold text-white border-b border-slate-700 pb-3 mb-4">{currentNode.question}</h1>
+              <p className="text-slate-300 whitespace-pre-wrap">{currentNode.explanation}</p>
               
               <div className="pt-6">
                 <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 text-center">Como você se sentiu ao lembrar disso?</h3>

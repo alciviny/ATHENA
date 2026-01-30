@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
-from typing import List
+from typing import Optional
 
 from brain.application.ports.repositories import KnowledgeRepository, PerformanceRepository
 from brain.domain.entities.performance_event import (
@@ -14,13 +14,12 @@ from brain.domain.services.intelligence_engine import IntelligenceEngine
 
 class RecordReviewUseCase:
     """
-    Caso de uso responsável por registrar uma revisão e atualizar o estado cognitivo
-    do KnowledgeNode usando inferência automática de dificuldade + IntelligenceEngine.
+    Caso de uso responsável por registrar uma revisão.
+    Suporta tanto 'Inferência Cognitiva' (baseada em tempo) quanto 'Feedback Explícito' (botões).
     """
 
-    # Limiar de tempo (em segundos) para inferência de dificuldade
-    FAST_RESPONSE_THRESHOLD = 15.0   # Muito rápido → EASY
-    SLOW_RESPONSE_THRESHOLD = 60.0   # Muito lento → HARD
+    FAST_RESPONSE_THRESHOLD = 15.0
+    SLOW_RESPONSE_THRESHOLD = 60.0
 
     def __init__(
         self,
@@ -38,6 +37,7 @@ class RecordReviewUseCase:
         node_id: str,
         success: bool,
         response_time_seconds: float = 0.0,
+        explicit_grade: Optional[int] = None, # Novo parâmetro opcional
     ):
         print(f"--- Processing Review for Node {node_id} ---")
 
@@ -47,32 +47,35 @@ class RecordReviewUseCase:
         if not node:
             raise ValueError(f"Knowledge Node {node_id} not found")
 
-        # 2. Buscar histórico recente (contexto para o IntelligenceEngine)
+        # 2. Buscar histórico
         recent_history = await self.performance_repo.get_recent_events(
             student_id, limit=50
         )
-
-        # Filtra eventos relacionados ao mesmo tópico/nó
         node_history = [e for e in recent_history if e.topic == node.name]
 
-        # 3. Inferir a nota cognitivamente (automação sensorial)
-        grade = self._infer_grade(success, response_time_seconds)
-        print(
-            f" inferred grade: {grade.name} "
-            f"(Time: {response_time_seconds}s)"
-        )
+        # 3. Determinar a nota (Explícita > Inferida)
+        if explicit_grade:
+            # Converte int (1-4) para Enum
+            # Assumindo: 1=AGAIN, 2=HARD, 3=GOOD, 4=EASY
+            grade = self._map_explicit_grade(explicit_grade)
+            inference_type = "explicit"
+        else:
+            grade = self._infer_grade(success, response_time_seconds)
+            inference_type = "inferred"
 
-        # 4. O “cérebro” calcula o novo estado (FSRS / SM-2 / híbrido)
+        print(f" Grade decision: {grade.name} (Source: {inference_type})")
+
+        # 4. Intelligence Engine calcula novo estado
         updated_node = self.intelligence_engine.update_node_state(
             node=node,
             grade=grade,
             history=node_history,
         )
 
-        # 5. Persistir o nó atualizado
+        # 5. Persistir
         await self.node_repo.update(updated_node)
 
-        # 6. Registrar evento de performance rico (telemetria cognitiva)
+        # 6. Registrar evento
         event = PerformanceEvent(
             id=uuid4(),
             student_id=student_id,
@@ -80,11 +83,12 @@ class RecordReviewUseCase:
             occurred_at=datetime.now(timezone.utc),
             topic=updated_node.name,
             metric=PerformanceMetric.ACCURACY,
-            value=1.0 if success else 0.0,
+            value=1.0 if grade != ReviewGrade.AGAIN else 0.0,
             baseline=updated_node.stability,
             event_metadata={
                 "response_time": response_time_seconds,
-                "inferred_grade": grade.value,
+                "grade_value": grade.value,
+                "grade_source": inference_type,
                 "difficulty_snapshot": updated_node.difficulty,
             },
         )
@@ -96,21 +100,24 @@ class RecordReviewUseCase:
             "node": updated_node.name,
             "new_stability": updated_node.stability,
             "next_review": updated_node.next_review_at,
-            "inferred_grade": grade.name,
+            "grade_used": grade.name,
         }
 
     def _infer_grade(self, success: bool, duration: float) -> ReviewGrade:
-        """
-        Transforma dados brutos (acerto + tempo) em uma avaliação cognitiva (FSRS Grade).
-        Remove a necessidade do aluno marcar manualmente Fácil/Médio/Difícil.
-        """
         if not success:
-            return ReviewGrade.AGAIN  # FSRS 1
-
+            return ReviewGrade.AGAIN
         if duration < self.FAST_RESPONSE_THRESHOLD:
-            return ReviewGrade.EASY   # FSRS 4
-
+            return ReviewGrade.EASY
         if duration > self.SLOW_RESPONSE_THRESHOLD:
-            return ReviewGrade.HARD   # FSRS 2
-
-        return ReviewGrade.GOOD       # FSRS 3
+            return ReviewGrade.HARD
+        return ReviewGrade.GOOD
+    
+    def _map_explicit_grade(self, value: int) -> ReviewGrade:
+        # Mapeamento direto dos botões do Frontend
+        mapping = {
+            1: ReviewGrade.AGAIN,
+            2: ReviewGrade.HARD,
+            3: ReviewGrade.GOOD,
+            4: ReviewGrade.EASY
+        }
+        return mapping.get(value, ReviewGrade.GOOD) # Fallback seguro

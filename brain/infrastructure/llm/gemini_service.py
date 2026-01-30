@@ -23,9 +23,9 @@ class FlashcardOutput(BaseModel):
 
 
 class GeminiService(AIService):
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model: str = "models/gemini-pro-latest"):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model)
+        self.model = genai.GenerativeModel(model_name=model)
 
     async def analyze_student_errors(
         self,
@@ -80,18 +80,23 @@ Nível de dificuldade: {difficulty}/5
 
 {context_prompt}
 
-Retorne um JSON com os campos:
-pergunta, opcoes, correta_index, explicacao
+Retorne APENAS o código JSON, dentro de um bloco de código markdown, com a seguinte estrutura:
+{{
+  "pergunta": "...",
+  "opcoes": ["...", "...", "...", "..."],
+  "correta_index": 0,
+  "explicacao": "..."
+}}
 """
 
         try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
-            )
+            response = self.model.generate_content(prompt)
 
+            # Extrair o JSON de dentro do bloco de código markdown
             content = response.text
-            flashcard = FlashcardOutput.model_validate_json(content)
+            json_str = content.strip().lstrip("```json").rstrip("```").strip()
+
+            flashcard = FlashcardOutput.model_validate_json(json_str)
 
             return flashcard.model_dump()
 

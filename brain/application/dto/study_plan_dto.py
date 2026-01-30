@@ -1,30 +1,24 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Dict, Any
 from uuid import UUID
 
 from brain.domain.entities.study_plan import StudyFocusLevel
 if TYPE_CHECKING:
     from brain.domain.entities.study_plan import StudyPlan
-    from brain.domain.entities.knowledge_node import KnowledgeNode
 
 
 @dataclass(frozen=True, slots=True)
-class KnowledgeNodeDTO:
-    """DTO para um nó de conhecimento, correspondendo ao que o frontend espera."""
+class StudyItemDTO:
+    """DTO para um item de estudo, como um flashcard gerado por IA."""
     id: UUID
     title: str
-    context: str # Embora o front chame de 'context', parece ser o nome/tópico.
+    type: str  # e.g., 'flashcard', 'theory'
     difficulty: float
-
-    @classmethod
-    def from_entity(cls, entity: "KnowledgeNode") -> "KnowledgeNodeDTO":
-        return cls(
-            id=entity.id,
-            title=entity.name,
-            context=f"Conteúdo sobre {entity.name} relacionado à matéria {entity.subject}.",
-            difficulty=entity.difficulty,
-        )
+    question: str
+    options: List[str]
+    correct_index: int
+    explanation: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,20 +31,20 @@ class StudyPlanOutputDTO:
     id: UUID
     student_id: UUID
     created_at: datetime
-    knowledge_nodes: List[KnowledgeNodeDTO]
+    study_items: List[StudyItemDTO]
     estimated_duration_minutes: int
     focus_level: str
 
     @classmethod
-    def from_entity(cls, entity: "StudyPlan") -> "StudyPlanOutputDTO":
+    def from_entity(cls, entity: "StudyPlan", study_items: List[StudyItemDTO]) -> "StudyPlanOutputDTO":
         """
-        Cria um DTO a partir da entidade de domínio, enriquecendo os nós.
+        Cria um DTO a partir da entidade de domínio e dos itens de estudo gerados.
         """
         return cls(
             id=entity.id,
             student_id=entity.student_id,
             created_at=entity.created_at,
-            knowledge_nodes=[KnowledgeNodeDTO.from_entity(node) for node in entity.knowledge_nodes],
+            study_items=study_items,
             estimated_duration_minutes=entity.estimated_duration_minutes,
             focus_level=entity.focus_level.value if isinstance(entity.focus_level, StudyFocusLevel) else str(entity.focus_level),
         )
