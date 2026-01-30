@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -59,7 +60,8 @@ func (r *PostgresNodeRepository) GetDueNodes(
 
 	for rows.Next() {
 		var n domain.KnowledgeNode
-		var nextReview, lastReview time.Time
+		var lastReview sql.NullTime
+		var nextReview time.Time
 
 		if err := rows.Scan(
 			&n.ID,
@@ -74,7 +76,9 @@ func (r *PostgresNodeRepository) GetDueNodes(
 			return nil, fmt.Errorf("falha ao escanear linha reservada: %w", err)
 		}
 
-		n.LastReviewedAt = lastReview.UTC()
+		if lastReview.Valid {
+			n.LastReviewedAt = lastReview.Time.UTC()
+		}
 		n.NextReviewAt = nextReview.UTC()
 
 		nodes = append(nodes, n)

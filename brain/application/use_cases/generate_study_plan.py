@@ -1,17 +1,12 @@
-import sys
-import asyncio
-from uuid import UUID
-from typing import List
-from datetime import datetime, timezone
-
-from brain.domain.services.study_plan_generator import StudyPlanGenerator
-from brain.domain.policies.adaptive_rule import AdaptiveRule
+# ... imports anteriores ...
+# Adicione o import do repositório vetorial
 from brain.application.ports.repositories import (
     StudentRepository,
     PerformanceRepository,
     KnowledgeRepository,
     StudyPlanRepository,
     CognitiveProfileRepository,
+    KnowledgeVectorRepository,
 )
 from brain.application.ports.ai_service import AIService
 from brain.application.dto.study_plan_dto import StudyPlanOutputDTO, StudyItemDTO
@@ -35,6 +30,7 @@ class GenerateStudyPlanUseCase:
         knowledge_repo: KnowledgeRepository,
         study_plan_repo: StudyPlanRepository,
         cognitive_profile_repo: CognitiveProfileRepository,
+        vector_repo: KnowledgeVectorRepository, # <--- INJEÇÃO DA NOVA DEPENDÊNCIA
         ai_service: AIService,
         adaptive_rules: List[AdaptiveRule]
     ):
@@ -43,6 +39,7 @@ class GenerateStudyPlanUseCase:
         self.knowledge_repo = knowledge_repo
         self.study_plan_repo = study_plan_repo
         self.cognitive_profile_repo = cognitive_profile_repo
+        self.vector_repo = vector_repo # <--- GUARDE A REFERÊNCIA
         self.ai_service = ai_service
         self.adaptive_rules = adaptive_rules
 
@@ -87,22 +84,44 @@ class GenerateStudyPlanUseCase:
             )
             print(f"Study plan generated with {len(study_plan.knowledge_nodes)} nodes.")
 
-            # 4. Gerar conteúdo de estudo para cada nó com o serviço de IA
-            print("Step 4: Generating study items with AI Service...")
-            generated_contents = []
+            # 4. Gerar conteúdo COM RAG e EM PARALELO
+            print("Step 4: Generating study items with AI + RAG...")
+            
+            ai_tasks = []
             for node in study_plan.knowledge_nodes:
-                content = await self.ai_service.generate_flashcard(
+                # AQUI ESTÁ A MÁGICA:
+                # Buscamos contexto real no Qdrant sobre o tópico
+                print(f"Fetching context for: {node.name}")
+                rag_context = await self.vector_repo.search_context(query=node.name, limit=2)
+                
+                # Se não achar nada, usa um fallback
+                final_context = rag_context if rag_context else f"Conceitos fundamentais de {node.name}"
+
+                task = self.ai_service.generate_flashcard(
                     topic=node.name,
                     difficulty=int(node.difficulty * 5),
-                    context=f"Conteúdo sobre {node.name}" # Placeholder, idealmente viria do VectorDB
+                    context=final_context # <--- Passamos o texto real do livro/pdf
                 )
-                generated_contents.append(content)
-                await asyncio.sleep(1) # Delay to avoid hitting rate limits
+                ai_tasks.append(task)
+
+            generated_contents = await asyncio.gather(*ai_tasks)
             print(f"Generated {len(generated_contents)} flashcards.")
 
             study_items = []
             for i, node in enumerate(study_plan.knowledge_nodes):
                 content = generated_contents[i]
+
+                # Estimativa rápida de retenção: R = e^(-dias_passados / estabilidade)
+                # Se nunca revisou, retenção é 0.
+                days_elapsed = 0
+                if node.last_reviewed_at:
+                    delta = datetime.now(timezone.utc) - node.last_reviewed_at
+                    days_elapsed = delta.days + (delta.seconds / 86400)
+
+                retention = 0.0
+                if node.stability and node.stability > 0:
+                     retention = math.exp(math.log(0.9) * days_elapsed / node.stability)
+
                 item = StudyItemDTO(
                     id=node.id,
                     title=node.name,
@@ -111,7 +130,11 @@ class GenerateStudyPlanUseCase:
                     question=content['pergunta'],
                     options=content['opcoes'],
                     correct_index=content['correta_index'],
-                    explanation=content['explicacao']
+                    explanation=content['explicacao'],
+                    # Novos dados
+                    stability=node.stability,
+                    current_retention=retention,
+                    topic_roi="VEIO_DE_OURO" if retention < 0.8 and node.difficulty > 7 else "NORMAL" # Lógica simples de exemplo
                 )
                 study_items.append(item)
             
