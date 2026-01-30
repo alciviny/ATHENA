@@ -8,17 +8,20 @@ if TYPE_CHECKING:
     from brain.domain.entities.study_plan import StudyPlan
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class StudyItemDTO:
-    """DTO para um item de estudo, como um flashcard gerado por IA."""
     id: UUID
     title: str
-    type: str  # e.g., 'flashcard', 'theory'
-    difficulty: float
+    type: str
+    difficulty: float  # 0.0 a 10.0
     question: str
     options: List[str]
     correct_index: int
     explanation: str
+    # --- NOVOS CAMPOS ---
+    stability: float = 0.0  # Dias que a memória dura
+    current_retention: float = 0.0  # % de chance de lembrar agora (0.0 a 1.0)
+    topic_roi: str = "NORMAL"  # "VEIO_DE_OURO", "PANTANO", "NORMAL"
 
 
 @dataclass(frozen=True, slots=True)
