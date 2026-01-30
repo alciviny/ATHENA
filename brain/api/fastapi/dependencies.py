@@ -1,4 +1,3 @@
-# brain/api/fastapi/dependencies.py
 from functools import lru_cache
 
 from fastapi import Depends
@@ -12,6 +11,8 @@ from brain.application.services.memory_analysis_service import MemoryAnalysisSer
 from brain.domain.services.intelligence_engine import IntelligenceEngine
 from brain.application.ports import repositories as ports
 from brain.infrastructure.llm.gemini_service import GeminiService
+from brain.infrastructure.persistence.qdrant_repository import QdrantKnowledgeVectorRepository
+from brain.application.ports.repositories import KnowledgeVectorRepository
 
 # Use Cases
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
@@ -48,7 +49,6 @@ def get_settings() -> Settings:
     return Settings()
 
 # Create singleton instances of in-memory repositories
-# This ensures that the data persists throughout the application's lifecycle
 @lru_cache()
 def get_in_memory_student_repo() -> InMemoryStudentRepository:
     return InMemoryStudentRepository()
@@ -126,6 +126,15 @@ async def get_error_event_repository(
         return get_in_memory_error_event_repo()
     return PostgresErrorEventRepository(db)
 
+def get_knowledge_vector_repository(
+    settings: Settings = Depends(get_settings),
+) -> KnowledgeVectorRepository:
+    """Provides a vector repository instance based on settings."""
+    return QdrantKnowledgeVectorRepository(
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY
+    )
+
 
 # =========================================================
 # Domain & Application Services
@@ -135,9 +144,13 @@ def get_ai_service(settings: Settings = Depends(get_settings)) -> AIService:
     if not settings.GEMINI_API_KEY:
         from brain.infrastructure.llm.mock_ai_service import MockAIService
         return MockAIService()
+    
+    # --- CORREÇÃO FINAL: FORÇANDO FLASH ---
+    # Ignora o settings.GEMINI_MODEL e usa o modelo rápido diretamente
+    # para evitar problemas com .env antigos
     return GeminiService(
         api_key=settings.GEMINI_API_KEY,
-        model=settings.GEMINI_MODEL
+        model="models/gemini-2.0-flash-lite-001" 
     )
 
 def get_intelligence_engine() -> IntelligenceEngine:
@@ -154,39 +167,6 @@ async def get_memory_analysis_service(
 ) -> MemoryAnalysisService:
     return MemoryAnalysisService(engine=engine, knowledge_repo=knowledge_repo)
 
-# ... (imports existentes) ...
-from brain.infrastructure.persistence.qdrant_repository import QdrantKnowledgeVectorRepository
-from brain.application.ports.repositories import KnowledgeVectorRepository
-# ... (resto dos imports) ...
-
-# =========================================================
-# Settings and Singletons
-# =========================================================
-
-# ... (código de get_settings e singletons in-memory) ...
-
-# =========================================================
-# Conditional Repository Providers
-# =========================================================
-
-# ... (código dos repositórios condicionais - student, study_plan, etc.) ...
-
-def get_knowledge_vector_repository(
-    settings: Settings = Depends(get_settings),
-) -> KnowledgeVectorRepository:
-    """Provides a vector repository instance based on settings."""
-    # Exemplo simples, ajuste conforme seu settings
-    return QdrantKnowledgeVectorRepository(
-        url=settings.QDRANT_URL,
-        api_key=settings.QDRANT_API_KEY
-    )
-
-
-# =========================================================
-# Domain & Application Services
-# =========================================================
-
-# ... (código de get_ai_service, get_intelligence_engine, etc.) ...
 
 # =========================================================
 # Use Cases
@@ -198,7 +178,7 @@ async def get_generate_study_plan_use_case(
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     study_plan_repo: ports.StudyPlanRepository = Depends(get_study_plan_repository),
     cognitive_profile_repo: ports.CognitiveProfileRepository = Depends(get_cognitive_profile_repository),
-    vector_repo: KnowledgeVectorRepository = Depends(get_knowledge_vector_repository), # <--- NOVO
+    vector_repo: KnowledgeVectorRepository = Depends(get_knowledge_vector_repository),
     ai_service: AIService = Depends(get_ai_service),
 ) -> GenerateStudyPlanUseCase:
     return GenerateStudyPlanUseCase(
@@ -207,13 +187,10 @@ async def get_generate_study_plan_use_case(
         knowledge_repo=knowledge_repo,
         study_plan_repo=study_plan_repo,
         cognitive_profile_repo=cognitive_profile_repo,
-        vector_repo=vector_repo, # <--- PASSANDO PARA O USE CASE
+        vector_repo=vector_repo,
         ai_service=ai_service,
         adaptive_rules=[],  # TODO: Inject real rules
     )
-
-# ... (resto do arquivo com get_analyze_student_performance_use_case, etc.) ...
-
 
 async def get_analyze_student_performance_use_case(
     error_event_repository: ports.ErrorEventRepository = Depends(get_error_event_repository),

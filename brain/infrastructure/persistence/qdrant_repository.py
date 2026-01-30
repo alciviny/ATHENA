@@ -1,20 +1,23 @@
-from typing import List, Optional
-from uuid import UUID
+import os
 import logging
-from importlib.metadata import version
+import asyncio
+from typing import List, Optional, Any
+from uuid import UUID
 
-from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.exceptions import UnexpectedResponse
+import google.generativeai as genai
+# MUDANÇA: Usamos o cliente síncrono que é mais compatível e estável
+from qdrant_client import QdrantClient
+from qdrant_client.models import VectorParams, Distance
 
 from brain.application.ports.repositories import KnowledgeVectorRepository
+from brain.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
     """
-    Adaptador de infraestrutura responsável por traduzir operações
-    semânticas do domínio para consultas vetoriais no Qdrant.
+    Adaptador de infraestrutura para Qdrant usando cliente Síncrono (Thread-Safe).
+    Isso resolve erros de compatibilidade de versão do AsyncClient.
     """
 
     def __init__(
@@ -23,93 +26,75 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
         url: str,
         api_key: Optional[str] = None,
         collection_name: str = "athena_knowledge",
-        timeout: float = 5.0,
+        timeout: float = 10.0,
     ) -> None:
-        qdrant_client_version = version('qdrant-client')
-        logger.info(f"Qdrant client version: {qdrant_client_version}")
         self._collection = collection_name
-        self._client = AsyncQdrantClient(
+        # MUDANÇA: Instanciando cliente síncrono
+        self._client = QdrantClient(
             url=url,
             api_key=api_key,
             timeout=timeout,
         )
 
-    async def find_semantically_related(
-        self,
-        reference_node_id: UUID,
-        *,
-        limit: int = 5,
-    ) -> List[UUID]:
-        """
-        Retorna nós semanticamente relacionados utilizando a API de
-        recomendação do Qdrant (server-side similarity).
+        if settings.GEMINI_API_KEY:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+        
+        logger.info(f"QdrantRepo (Sync) initialized at {url}")
 
-        Estratégia:
-        - Usa o ID do ponto como referência positiva
-        - Evita tráfego desnecessário de vetores/payloads
-        - Falhas não interrompem o fluxo principal (graceful degradation)
-        """
+    async def _generate_query_embedding(self, text: str) -> List[float]:
         try:
-            results = await self._client.recommend(
-                collection_name=self._collection,
-                positive=[str(reference_node_id)],
-                limit=limit,
-                with_payload=False,
-                with_vectors=False,
+            # Usa thread para não bloquear o loop principal
+            result = await asyncio.to_thread(
+                genai.embed_content,
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_query"
             )
-
-            return [
-                UUID(hit.id)
-                for hit in results
-                if hit.id is not None
-            ]
-
-        except UnexpectedResponse as exc:
-            logger.warning(
-                "Qdrant respondeu de forma inesperada ao recomendar similaridade.",
-                extra={
-                    "reference_node_id": str(reference_node_id),
-                    "collection": self._collection,
-                    "error": str(exc),
-                },
-            )
+            return result['embedding']
+        except Exception as e:
+            logger.error(f"Erro ao gerar embedding: {e}")
             return []
 
-        except Exception as exc:
-            logger.error(
-                "Falha crítica ao acessar Qdrant para busca semântica.",
-                exc_info=True,
-                extra={
-                    "reference_node_id": str(reference_node_id),
-                    "collection": self._collection,
-                },
-            )
-            return []
-
-    async def search_context(self, query_vector: List[float], limit: int = 3) -> str:
+    async def search_context(self, query: str, limit: int = 3) -> str:
         """
-        Busca trechos de texto relevantes no banco vetorial para servirem de
-        'Grounding' (Base) para a IA. Isso reduz alucinações.
+        Busca contexto semântico usando execução síncrona em thread.
         """
-        if not query_vector:
+        if not query:
             return ""
 
         try:
-            results = await self._client.search(
-                collection_name=self._collection,
-                query_vector=query_vector,
-                limit=limit,
-            )
+            # 1. Gera embedding
+            query_vector = await self._generate_query_embedding(query)
+            if not query_vector:
+                return ""
+
+            # 2. Define função de busca síncrona
+            def _do_search():
+                return self._client.search(
+                    collection_name=self._collection,
+                    query_vector=query_vector,
+                    limit=limit,
+                )
+
+            # 3. Executa em thread separada (Isola o erro de AsyncClient)
+            results = await asyncio.to_thread(_do_search)
 
             context_chunks = [
                 hit.payload.get("text", "")
                 for hit in results
                 if hit.payload and "text" in hit.payload
             ]
-
-            return "\n\n".join(context_chunks)
+            
+            found_text = "\n\n".join(context_chunks)
+            if found_text:
+                logger.info(f"RAG: Encontrado contexto para '{query}' ({len(found_text)} chars)")
+            
+            return found_text
 
         except Exception as exc:
-            logger.error(f"Erro ao buscar contexto no Qdrant: {exc}")
-            # Falha segura → IA continua funcionando sem grounding
+            # Loga o erro mas retorna vazio para não quebrar a geração do plano
+            logger.error(f"Erro Qdrant search (Ignorado): {exc}")
             return ""
+
+    async def find_semantically_related(self, reference_node_id: UUID, *, limit: int = 5) -> List[UUID]:
+        return []

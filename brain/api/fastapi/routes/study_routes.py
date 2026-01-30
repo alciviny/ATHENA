@@ -8,14 +8,16 @@ from brain.api.fastapi.dependencies import (
     get_generate_study_plan_use_case,
     get_record_review_use_case,
 )
-from brain.application.dto.study_plan_dto import StudyPlanOutputDTO
+# --- CORREÇÃO: Importamos o DTO correto (criado no passo anterior) ---
+from brain.application.dto.study_plan_dto import StudyPlanDTO
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.record_review import RecordReviewUseCase
 
 router = APIRouter()
 
 
-@router.post("/generate-plan/{student_id}", response_model=StudyPlanOutputDTO)
+# --- CORREÇÃO: Atualizamos o response_model para StudyPlanDTO ---
+@router.post("/generate-plan/{student_id}", response_model=StudyPlanDTO)
 async def generate_study_plan(
     student_id: UUID,
     use_case: GenerateStudyPlanUseCase = Depends(get_generate_study_plan_use_case),
@@ -27,7 +29,8 @@ async def generate_study_plan(
         study_plan = await use_case.execute(student_id)
         return study_plan
     except Exception as e:
-        # A more specific exception handling would be better in production
+        # Log detalhado do erro para debug
+        print(f"Error generating plan: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 
@@ -59,6 +62,5 @@ async def record_review(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        # In production, you'd want to log this error properly.
         print(f"Error processing review: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
