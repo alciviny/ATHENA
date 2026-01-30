@@ -1,6 +1,7 @@
 import time
 import logging
-from typing import List
+import asyncio
+from typing import List, Dict, Any
 
 from brain.application.ports.ai_service import AIService
 from brain.domain.entities.error_event import ErrorEvent
@@ -23,7 +24,34 @@ class MockAIService(AIService):
         """
         self.delay_seconds = delay_seconds
 
-    def analyze_student_errors(
+    async def generate_flashcard(
+        self, topic: str, difficulty: int, context: str
+    ) -> Dict[str, Any]:
+        """
+        Simula a geração de um flashcard, retornando um exemplo fixo.
+        """
+        logger.info(f"Mock AI Service: Gerando flashcard para o tópico '{topic}'.")
+
+        if self.delay_seconds > 0:
+            await asyncio.sleep(self.delay_seconds)
+
+        # Resposta determinística para testes
+        flashcard = {
+            "pergunta": f"Qual é o conceito fundamental de '{topic}'?",
+            "opcoes": [
+                f"Opção A sobre {topic}",
+                f"Opção B sobre {topic}",
+                f"Opção C sobre {topic}",
+                f"Opção D sobre {topic}",
+            ],
+            "correta_index": 0,
+            "explicacao": f"Esta é uma explicação detalhada sobre por que a Opção A é a resposta correta para a pergunta sobre '{topic}'. A dificuldade foi {difficulty}.",
+        }
+
+        logger.info(f"Mock AI Service: Flashcard para '{topic}' gerado.")
+        return flashcard
+
+    async def analyze_student_errors(
         self,
         errors: List[ErrorEvent],
         subject: str,
@@ -38,7 +66,7 @@ class MockAIService(AIService):
         )
 
         if self.delay_seconds > 0:
-            time.sleep(self.delay_seconds)
+            await asyncio.sleep(self.delay_seconds)
 
         if not errors:
             logger.info("Mock AI Service: Nenhum erro encontrado para análise.")

@@ -1,3 +1,4 @@
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str | None = None
     # OPENAI_API_KEY: str | None = None  # Deprecated
+
+    @computed_field
+    @property
+    def QDRANT_URL(self) -> str:
+        return f"http://{self.qdrant_host}:{self.qdrant_port}"
 
 
 settings = Settings()

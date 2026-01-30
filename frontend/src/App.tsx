@@ -138,7 +138,7 @@ function App() {
 
             <div className="space-y-3 mb-8">
               <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Sequência de Estudo</h3>
-              {plan.knowledge_nodes.map((node, index) => (
+              {plan.study_items.map((node, index) => (
                 <div key={node.id} className="flex items-center p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-800 text-slate-400 font-mono text-sm border border-slate-700">
                     {index + 1}

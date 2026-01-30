@@ -24,8 +24,18 @@ export const studyService = {
     grade: number,
     responseTime: number
   ) => {
+    // O mesmo studentId hardcoded usado em generatePlan.
+    // Em um app real, isso viria do estado de autenticação do usuário.
+    const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
+    // O backend espera um booleano `success`, não o `grade` numérico.
+    // Mapeamento: 1 (De novo), 2 (Difícil) -> false
+    //             3 (Bom), 4 (Fácil) -> true
+    const success = grade > 2;
+
     return api.post(`/api/study/review/${nodeId}`, {
-      grade,
+      student_id,
+      success,
       response_time_seconds: responseTime,
     });
   },

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "python-basics",
+    "name": "Fundamentos de Python",
+    "subject": "Desenvolvimento de Software",
+    "weight": 1.0,
+    "difficulty": 1,
+    "content": "Python é uma linguagem interpretada, de tipagem dinâmica e forte. Estruturas de dados principais: list (mutável), tuple (imutável), dict (chave-valor) e set (elementos únicos). O gerenciamento de memória é feito via Reference Counting e Garbage Collection geracional.",
+    "dependencies": []
+  },
+  {
+    "id": "python-async",
+    "name": "Assincronismo em Python",
+    "subject": "Desenvolvimento de Software",
+    "weight": 1.5,
+    "difficulty": 4,
+    "content": "O módulo asyncio permite escrever código concorrente usando a sintaxe async/await. Diferente de threads, asyncio usa um Event Loop único (single-threaded) e trocas de contexto cooperativas. É ideal para operações I/O Bound (rede, disco), mas não melhora performance em CPU Bound.",
+    "dependencies": ["python-basics"]
+  },
+  {
+    "id": "api-rest",
+    "name": "Arquitetura REST",
+    "subject": "Arquitetura de Sistemas",
+    "weight": 1.2,
+    "difficulty": 2,
+    "content": "REST (Representational State Transfer) é um estilo arquitetural. Princípios: Stateless (servidor não guarda estado do cliente), Cacheable, Client-Server, Interface Uniforme e Sistema em Camadas. Utiliza verbos HTTP (GET, POST, PUT, DELETE) semanticamente.",
+    "dependencies": []
+  },
+  {
+    "id": "fastapi-core",
+    "name": "FastAPI e Pydantic",
+    "subject": "Arquitetura de Sistemas",
+    "weight": 1.3,
+    "difficulty": 3,
+    "content": "FastAPI é um framework web moderno para Python baseada em Starlette e Pydantic. Pydantic é usado para validação de dados via Type Hints. FastAPI gera automaticamente documentação OpenAPI (Swagger) e suporta execução assíncrona nativa.",
+    "dependencies": ["python-basics", "api-rest"]
+  }
+]
