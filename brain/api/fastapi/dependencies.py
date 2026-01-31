@@ -23,6 +23,10 @@ from brain.application.ports.repositories import KnowledgeVectorRepository
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.analyze_student_performance import AnalyzeStudentPerformance
 from brain.application.use_cases.record_review import RecordReviewUseCase
+from brain.application.use_cases.start_exam_simulator import StartExamSimulatorUseCase
+
+# Adaptive Rules
+from brain.domain.policies.rules.stress_test_rule import StressTestRule
 
 # Postgres Repositories
 from brain.infrastructure.persistence.postgres_repositories import (
@@ -199,6 +203,7 @@ async def get_generate_study_plan_use_case(
     cognitive_profile_repo: ports.CognitiveProfileRepository = Depends(get_cognitive_profile_repository),
     vector_repo: KnowledgeVectorRepository = Depends(get_knowledge_vector_repository),
     ai_service: AIService = Depends(get_ai_service),
+    settings: Settings = Depends(get_settings),
 ) -> GenerateStudyPlanUseCase:
     return GenerateStudyPlanUseCase(
         student_repo=student_repo,
@@ -208,7 +213,8 @@ async def get_generate_study_plan_use_case(
         cognitive_profile_repo=cognitive_profile_repo,
         vector_repo=vector_repo,
         ai_service=ai_service,
-        adaptive_rules=[],  # TODO: Inject real rules
+        adaptive_rules=[StressTestRule()],  # Inject StressTestRule to start monitoring response speed
+        settings=settings,
     )
 
 async def get_analyze_student_performance_use_case(
@@ -229,4 +235,24 @@ async def get_record_review_use_case(
         performance_repo=performance_repo,
         node_repo=knowledge_repo,
         intelligence_engine=intelligence_engine,
+    )
+
+
+async def get_start_exam_simulator_use_case(
+    student_repo: ports.StudentRepository = Depends(get_student_repository),
+    knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
+    study_plan_repo: ports.StudyPlanRepository = Depends(get_study_plan_repository),
+    cognitive_profile_repo: ports.CognitiveProfileRepository = Depends(get_cognitive_profile_repository),
+    vector_repo: ports.KnowledgeVectorRepository = Depends(get_knowledge_vector_repository),
+    performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
+    ai_service: AIService = Depends(get_ai_service),
+) -> StartExamSimulatorUseCase:
+    return StartExamSimulatorUseCase(
+        student_repo=student_repo,
+        knowledge_repo=knowledge_repo,
+        study_plan_repo=study_plan_repo,
+        cognitive_profile_repo=cognitive_profile_repo,
+        vector_repo=vector_repo,
+        performance_repo=performance_repo,
+        ai_service=ai_service,
     )

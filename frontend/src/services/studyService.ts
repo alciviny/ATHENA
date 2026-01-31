@@ -8,7 +8,7 @@ interface BackendSession {
 
 interface BackendItem {
   id: string;
-  difficulty?: number;
+  topic_roi: string;
   content: {
     front: string;
     back: string;
@@ -65,7 +65,6 @@ export const studyService = {
             items.push({
               id: item.id,
               type: 'flashcard',
-              difficulty: item.difficulty || 0,
               // mantém o formato aninhado também, para compatibilidade
               content: item.content,
               // campos adicionais antigos mantidos para compatibilidade com componentes mais simples
@@ -75,7 +74,7 @@ export const studyService = {
               explanation: item.content?.back,
               stability: 1.0,
               current_retention: 0.9,
-              topic_roi: 'NORMAL'
+              topic_roi: item.topic_roi, // Mapeia o rótulo estratégico do backend
             });
           });
         }
@@ -90,14 +89,40 @@ export const studyService = {
       });
     }
 
-    // 2. Retorna o objeto no formato que o React espera (incluindo `sessions`)
+    // 2. Converte flashcards (se existirem) para o formato interno
+    const flashcards = (backendData.flashcards && Array.isArray(backendData.flashcards))
+      ? backendData.flashcards.map((c: any, idx: number) => ({
+          id: `fc-${idx}-${c.pergunta?.slice(0,10)}`,
+          type: 'flashcard',
+          content: {
+            front: c.pergunta,
+            back: c.explicacao,
+            options: c.opcoes || [],
+            correct_index: c.correta_index ?? 0,
+          }
+        }))
+      : [];
+
+    // 3. Se não houver sessões, mas houver flashcards, cria uma sessão "Flashcards"
+    if ((sessions.length === 0 || !sessions) && flashcards.length > 0) {
+      sessions.push({
+        id: `${backendData.id || 'plan'}-flashcards`,
+        topic: 'Flashcards',
+        duration_minutes: flashcards.length * 2,
+        items: flashcards,
+        focus_level: backendData.focus_level || 'GERAL'
+      });
+    }
+
+    // 4. Retorna o objeto no formato que o React espera (incluindo `sessions` e `flashcards`)
     return {
       id: backendData.id,
       student_id: backendData.student_id,
       created_at: backendData.created_at,
       estimated_duration_minutes: backendData.estimated_duration_minutes || 15,
       focus_level: backendData.focus_level || 'Deep Work',
-      sessions
+      sessions,
+      flashcards,
     };
   },
 

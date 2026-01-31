@@ -29,6 +29,9 @@ class CognitiveProfile:
     # Mapeia tipo de erro → frequência acumulada
     error_patterns: Dict[str, float] = field(default_factory=dict)
 
+    # Estado cognitivo: DEEP_WORK (normal) ou RECOVERY (fadiga detectada)
+    focus_level: str = "DEEP_WORK"
+
     def __post_init__(self) -> None:
         """
         Normaliza automaticamente os scores na criação.

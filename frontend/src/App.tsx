@@ -3,6 +3,7 @@ import { Play, Brain, Clock, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { studyService } from './services/studyService';
 import type { StudyPlan, StudyItem, StudySession } from './types/athena';
 import { StudySession as StudySessionComponent } from './components/StudySession';
+import Flashcards from './components/Flashcards';
 
 // --- TIPO INTERNO PARA COMPATIBILIDADE VISUAL ---
 interface UIStudyItem extends StudyItem {
@@ -176,7 +177,7 @@ function App() {
       <main className="max-w-3xl mx-auto px-6 py-12">
         
         {/* Lógica: Mostra botão de gerar se não tem plano OU se o plano veio vazio (0 sessions) */}
-        {(!plan || flatItems.length === 0) && !loading && (
+        {( (!plan) || (flatItems.length === 0 && !(plan?.flashcards && plan.flashcards.length > 0)) ) && !loading && (
           <div className="text-center py-20 space-y-6">
             <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
               {plan ? "Nenhum ponto de melhoria detectado." : "Pronto para evoluir?"}
@@ -194,6 +195,8 @@ function App() {
             </button>
           </div>
         )}
+
+        
 
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4 animate-pulse">
@@ -250,6 +253,13 @@ function App() {
               <Play className="w-5 h-5 fill-current" />
               Iniciar Sessão Focada
             </button>
+          </div>
+        )}
+
+        {/* Exibe flashcards APÓS o Plano Tático (se existirem) */}
+        {plan && plan.flashcards && plan.flashcards.length > 0 && !loading && (
+          <div className="max-w-3xl mx-auto px-6 py-4">
+            <Flashcards cards={plan.flashcards} />
           </div>
         )}
       </main>

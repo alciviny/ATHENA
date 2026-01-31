@@ -7,17 +7,19 @@ from pydantic import BaseModel
 from brain.api.fastapi.dependencies import (
     get_generate_study_plan_use_case,
     get_record_review_use_case,
+    get_start_exam_simulator_use_case,
 )
 # --- CORREÇÃO: Importamos o DTO correto (criado no passo anterior) ---
-from brain.application.dto.study_plan_dto import StudyPlanDTO
+from brain.application.dto.study_plan_dto import StudyPlanDTO, StudyPlanOutputDTO
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.record_review import RecordReviewUseCase
+from brain.application.use_cases.start_exam_simulator import StartExamSimulatorUseCase
 
 router = APIRouter()
 
 
 # --- CORREÇÃO: Atualizamos o response_model para StudyPlanDTO ---
-@router.post("/generate-plan/{student_id}", response_model=StudyPlanDTO)
+@router.post("/generate-plan/{student_id}", response_model=StudyPlanOutputDTO)
 async def generate_study_plan(
     student_id: UUID,
     use_case: GenerateStudyPlanUseCase = Depends(get_generate_study_plan_use_case),
@@ -32,6 +34,23 @@ async def generate_study_plan(
         # Log detalhado do erro para debug
         print(f"Error generating plan: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+
+
+
+@router.post("/study/start-simulator/{student_id}", response_model=StudyPlanOutputDTO)
+async def start_exam_simulator(
+    student_id: UUID,
+    num_questions: Optional[int] = 20,
+    time_limit_seconds: Optional[int] = 3600,
+    stress_level: Optional[float] = 1.0,
+    use_case: StartExamSimulatorUseCase = Depends(get_start_exam_simulator_use_case),
+):
+    try:
+        plan = await use_case.execute(student_id=student_id, num_questions=num_questions, time_limit_seconds=time_limit_seconds, stress_level=stress_level)
+        return plan
+    except Exception as e:
+        print(f"Error starting simulator: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ReviewSchema(BaseModel):

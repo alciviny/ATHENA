@@ -47,10 +47,10 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
 
   // Flatten all sessions -> items while keeping session metadata (topic)
   const itemsWithMeta = useMemo(() => {
-    const arr: Array<{ item: StudyItem; topic?: string; sessionId?: string }> = [];
+    const arr: Array<{ item: StudyItem; topic?: string; sessionId?: string, focus_level?: string }> = [];
     if (plan?.sessions && Array.isArray(plan.sessions)) {
       plan.sessions.forEach((s) => {
-        (s.items || []).forEach((it) => arr.push({ item: it, topic: s.topic, sessionId: s.id }));
+        (s.items || []).forEach((it) => arr.push({ item: it, topic: s.topic, sessionId: s.id, focus_level: s.focus_level }));
       });
     }
     // Fallback to study_items if sessions were not provided
@@ -64,6 +64,8 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
 
   const currentNode = useMemo(() => items[currentIndex], [items, currentIndex]);
   const currentTopic = itemsWithMeta[currentIndex]?.topic;
+  const currentFocusLevel = itemsWithMeta[currentIndex]?.focus_level;
+
 
   const handleSelectOption = (index: number) => {
     if (phase === 'RECALL') {
@@ -97,6 +99,15 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
 
   return (
     <div className="w-full max-w-2xl mx-auto p-8">
+      {currentFocusLevel === 'RECOVERY' && (
+        <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/50 rounded-lg flex items-center gap-3">
+          <span className="text-2xl">🔋</span>
+          <div>
+            <h4 className="text-amber-400 font-bold text-sm">Modo de Recuperação Ativo</h4>
+            <p className="text-amber-200/70 text-xs">Detectamos cansaço. Reduzimos a carga para focar apenas em revisões essenciais.</p>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-sm text-slate-400">Tópico</h3>
@@ -116,6 +127,18 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
               stability={currentNode.stability || 1}
             />
           </div>
+
+          {currentNode.topic_roi && (
+              <div className="flex justify-center mb-4">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tighter ${
+                      currentNode.topic_roi.includes("ALTO") ? "bg-red-500/20 text-red-400 border border-red-500/50" :
+                      currentNode.topic_roi.includes("ESTRATÉGICO") ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" :
+                      "bg-blue-500/20 text-blue-400 border border-blue-500/50"
+                  }`}>
+                      {currentNode.topic_roi}
+                  </span>
+              </div>
+          )}
 
           <h1 className="text-3xl font-bold text-white">{currentNode.front}</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

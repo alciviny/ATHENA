@@ -12,6 +12,7 @@ from brain.application.dto.study_plan_dto import StudyPlanOutputDTO
 from brain.domain.entities.student import Student, StudentGoal
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.study_plan import StudyPlan
+from types import SimpleNamespace
 
 # Mock das dependências externas (repositórios)
 @pytest.fixture
@@ -47,6 +48,7 @@ def generate_study_plan_use_case(
     mock_cognitive_profile_repo,
     mock_adaptive_rules,
 ):
+    settings = SimpleNamespace(ALLOW_FAKE_FALLBACK=True)
     return GenerateStudyPlanUseCase(
         student_repo=mock_student_repo,
         performance_repo=mock_performance_repo,
@@ -54,6 +56,7 @@ def generate_study_plan_use_case(
         study_plan_repo=mock_study_plan_repo,
         cognitive_profile_repo=mock_cognitive_profile_repo,
         adaptive_rules=mock_adaptive_rules,
+        settings=settings,
     )
 
 @pytest.mark.asyncio
@@ -137,3 +140,63 @@ async def test_cognitive_profile_not_found(generate_study_plan_use_case, mock_st
 
     mock_student_repo.get_by_id.assert_awaited_once_with(student_id)
     mock_cognitive_profile_repo.get_by_student_id.assert_awaited_once_with(student_id)
+
+
+@pytest.mark.asyncio
+async def test_fail_fast_when_no_ai_and_flag_false(
+    mock_student_repo,
+    mock_performance_repo,
+    mock_knowledge_repo,
+    mock_study_plan_repo,
+    mock_cognitive_profile_repo,
+):
+    """
+    Quando o flag ALLOW_FAKE_FALLBACK estiver False e não houver serviços de IA,
+    o caso de uso deve falhar rapidamente (fail-fast) em vez de usar fallbacks.
+    """
+    student_id = uuid4()
+    mock_student = Student(id=student_id, name="Test Student", goal=StudentGoal.INSS)
+    mock_profile = CognitiveProfile(
+        id=uuid4(),
+        student_id=student_id,
+        retention_rate=0.5,
+        learning_speed=0.5,
+        stress_sensitivity=0.5
+    )
+    mock_plan = StudyPlan(
+        id=uuid4(),
+        student_id=student_id,
+        knowledge_nodes=[uuid4()],
+        created_at=datetime.now(timezone.utc)
+    )
+
+    mock_student_repo.get_by_id.return_value = mock_student
+    mock_cognitive_profile_repo.get_by_student_id.return_value = mock_profile
+
+    # Forçamos ausência de ai_service e vector_repo
+    ai_service = None
+    vector_repo = None
+
+    # Instancia o use case com flag de fallback desabilitada
+    settings = SimpleNamespace(ALLOW_FAKE_FALLBACK=False)
+
+    use_case = GenerateStudyPlanUseCase(
+        student_repo=mock_student_repo,
+        performance_repo=mock_performance_repo,
+        knowledge_repo=mock_knowledge_repo,
+        study_plan_repo=mock_study_plan_repo,
+        cognitive_profile_repo=mock_cognitive_profile_repo,
+        adaptive_rules=[],
+        ai_service=ai_service,
+        vector_repo=vector_repo,
+        settings=settings,
+    )
+
+    # Mock do StudyPlanGenerator para retornar um plano com 1 nó e forçar a parte
+    # de geração de conteúdo (onde o fallback normalmente ocorreria)
+    with patch('brain.application.use_cases.generate_study_plan.StudyPlanGenerator') as MockGenerator:
+        mock_generator_instance = MockGenerator.return_value
+        mock_generator_instance.generate.return_value = mock_plan
+
+        with pytest.raises(RuntimeError):
+            await use_case.execute(student_id)

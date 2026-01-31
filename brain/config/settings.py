@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
+    # --- Feature flag: permite usar fallbacks "falsos" em ambientes de teste
+    # Em produção, recomenda-se manter como False para evitar mascarar falhas de IA.
+    ALLOW_FAKE_FALLBACK: bool = False
+
     # Configuração para ler do arquivo .env
     model_config = SettingsConfigDict(
         env_file=".env",
