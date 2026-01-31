@@ -1,117 +1,73 @@
-import sys
-import os
+import json
+import asyncio
+from uuid import uuid4
+from sqlalchemy.ext.asyncio import AsyncSession
+from brain.infrastructure.persistence.database import SessionLocal
+from brain.infrastructure.persistence.models import KnowledgeNodeModel
+from brain.domain.services.graph_validator import KnowledgeGraphValidator, GraphValidationError
+from brain.domain.entities.knowledge_node import KnowledgeNode
 
-# Adiciona o diretório pai (raiz do projeto) ao caminho do Python
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+async def seed_knowledge_graph():
+    # Carregamento do currículo estruturado
+    with open("brain/data/initial_curriculum.json", "r") as f:
+        data = json.load(f)
 
-from sqlalchemy import create_engine, select, text
-from sqlalchemy.orm import sessionmaker
-
-from brain.infrastructure.persistence.models import KnowledgeNodeModel, node_dependencies
-from brain.config.settings import Settings
-# etc...
-NODES = {
-    "aritmetica": {
-        "name": "Aritmética Básica",
-        "subject": "Matemática",
-        "weight_in_exam": 0.10,
-        "difficulty": 1.0,
-        "weight": 1.0,
-    },
-    "algebra": {
-        "name": "Álgebra Fundamental",
-        "subject": "Matemática",
-        "weight_in_exam": 0.25,
-        "difficulty": 3.0,
-        "weight": 1.2,
-        "depends_on": ["aritmetica"],
-    },
-    "funcoes": {
-        "name": "Funções e Gráficos",
-        "subject": "Matemática",
-        "weight_in_exam": 0.30,
-        "difficulty": 5.0,
-        "weight": 1.5,
-        "depends_on": ["algebra"],
-    },
-    "cinematica": {
-        "name": "Cinemática (MRU/MRUV)",
-        "subject": "Física",
-        "weight_in_exam": 0.20,
-        "difficulty": 4.0,
-        "weight": 1.1,
-        "depends_on": ["algebra"],
-    },
-    "dinamica": {
-        "name": "Leis de Newton (Dinâmica)",
-        "subject": "Física",
-        "weight_in_exam": 0.35,
-        "difficulty": 6.0,
-        "weight": 1.3,
-        "depends_on": ["cinematica"],
-    },
-}
-
-
-def seed_knowledge_graph(reset: bool = False):
-    settings = Settings()
-    engine = create_engine(settings.DATABASE_URL)
-    Session = sessionmaker(bind=engine)
-
-    print("(+) Seeding Knowledge Graph...")
-
-    with Session.begin() as session:
-
-        if reset:
-            print("(!) RESET ATIVADO: apagando TUDO e recomeçando...")
-            # Truncate tables to reset IDs and clear all data
-            session.execute(text("TRUNCATE TABLE public.node_dependencies RESTART IDENTITY CASCADE"))
-            session.execute(text("TRUNCATE TABLE public.knowledge_nodes RESTART IDENTITY CASCADE"))
-
-        existing_nodes = {
-            node.name: node
-            for node in session.execute(
-                select(KnowledgeNodeModel)
-            ).scalars()
+    # --- VALIDAÇÃO DE NÍVEL DE PRODUÇÃO ---
+    try:
+        print("🔍 Validando a estrutura do grafo de conhecimento...")
+        
+        # 1. Criar instâncias de domínio temporárias para validação
+        # É preciso simular o grafo com objetos de domínio antes de persistir
+        temp_node_map = {
+            n_data["id"]: KnowledgeNode(id=n_data["id"], name=n_data["name"])
+            for n_data in data["nodes"]
         }
 
-        created_nodes = {}
+        # 2. Conectar as dependências usando os objetos criados
+        for n_data in data["nodes"]:
+            node = temp_node_map[n_data["id"]]
+            dep_ids = n_data.get("dependencies", [])
+            node.dependencies = [temp_node_map[dep_id] for dep_id in dep_ids]
+        
+        # 3. Validar com o algoritmo de ordenação topológica (que também detecta ciclos)
+        temp_nodes_list = list(temp_node_map.values())
+        KnowledgeGraphValidator.get_topological_order(temp_nodes_list)
+        
+        print("✅ Estrutura do Grafo validada. O currículo é acíclico.")
 
-        # 1. Criar nós
-        for key, data in NODES.items():
-            if data["name"] in existing_nodes:
-                created_nodes[key] = existing_nodes[data["name"]]
-                continue
+    except GraphValidationError as e:
+        print(f"❌ ERRO CRÍTICO: {e}")
+        return # Aborta antes de corromper o banco
+    except KeyError as e:
+        print(f"❌ ERRO CRÍTICO: Dependência não encontrada no JSON: {e}")
+        return
 
+    async with SessionLocal() as session:
+        print("🔄 Iniciando persistência no banco de dados...")
+        # Lógica de persistência (mapeamento de UUIDs e commit)
+        db_node_map = {}
+        for item in data["nodes"]:
+            # Usar o ID do JSON como referência, mas gerar um UUID novo para o banco
             node = KnowledgeNodeModel(
-                name=data["name"],
-                subject=data["subject"],
-                weight_in_exam=data["weight_in_exam"],
-                difficulty=data["difficulty"],
-                weight=data["weight"],
+                id=uuid4(),
+                name=item["name"],
+                difficulty=item.get("difficulty", 0.5),
+                importance_weight=item.get("importance", 1.0)
             )
-
+            db_node_map[item["id"]] = node
             session.add(node)
-            created_nodes[key] = node
 
-        session.flush()  # garante IDs
-
-        # 2. Criar dependências
-        for key, data in NODES.items():
-            if "depends_on" not in data:
-                continue
-
-            node = created_nodes[key]
-
-            for dep_key in data["depends_on"]:
-                dependency = created_nodes[dep_key]
-                if dependency not in node.dependencies:
-                    node.dependencies.append(dependency)
-
-    print(">> Knowledge Graph pronto!")
-    print("   Matemática: Aritmética > Álgebra > Funções")
-    print("   Física: Álgebra > Cinemática > Dinâmica")  
-
+        # Estabelecer as conexões de dependência usando os novos modelos do DB
+        for item in data["nodes"]:
+            if "dependencies" in item:
+                current_db_node = db_node_map[item["id"]]
+                for dep_id in item["dependencies"]:
+                    if dep_id in db_node_map:
+                        parent_db_node = db_node_map[dep_id]
+                        current_db_node.dependencies.append(parent_db_node)
+        
+        await session.commit()
+        print("✅ Grafo de Conhecimento carregado com sucesso!")
 
 if __name__ == "__main__":
-    seed_knowledge_graph(reset=True)
+    asyncio.run(seed_knowledge_graph())

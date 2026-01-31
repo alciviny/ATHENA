@@ -99,4 +99,38 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
             return ""
 
     async def find_semantically_related(self, reference_node_id: UUID, *, limit: int = 5) -> List[UUID]:
-        return []
+        try:
+            # Alguns ambientes de teste injetam um cliente async (AsyncMock).
+            # Chamamos await para compatibilidade com ambos os casos.
+            recommend_coro = self._client.recommend(
+                collection_name=self._collection,
+                positive=[str(reference_node_id)],
+                limit=limit,
+                with_payload=False,
+                with_vectors=False,
+            )
+
+            if asyncio.iscoroutine(recommend_coro):
+                response = await recommend_coro
+            else:
+                # Cliente síncrono retornou diretamente
+                response = recommend_coro
+
+            # response é uma lista de ScoredPoint-like
+            ids = []
+            for p in response:
+                try:
+                    ids.append(UUID(str(p.id)))
+                except Exception:
+                    continue
+            return ids
+
+        except Exception as exc:
+            # Tratar cenários de erro de forma resiliente para não quebrar o fluxo
+            logger.error("Falha crítica ao acessar Qdrant para busca semântica.", exc_info=exc)
+            try:
+                # Se a API do cliente produziu uma exceção específica, logue como aviso
+                logger.warning("Qdrant respondeu de forma inesperada ao recomendar similaridade.")
+            except Exception:
+                pass
+            return []

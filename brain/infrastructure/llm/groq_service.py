@@ -4,7 +4,15 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 
-from groq import AsyncGroq
+try:
+    from groq import AsyncGroq
+except Exception:
+    # Ambiente de testes pode não ter a dependência 'groq'. Fornecemos
+    # um stub leve para permitir a importação do módulo. Se o serviço
+    # for instanciado sem a biblioteca real, ele lançará RuntimeError.
+    class AsyncGroq:  # stub
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("Dependência 'groq' não disponível in runtime")
 import google.generativeai as genai
 from pydantic import BaseModel, Field, ValidationError
 

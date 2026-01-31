@@ -46,5 +46,6 @@ export interface StudyPlan {
   focus_level?: string;
   study_items?: StudyItem[];
   sessions?: StudySession[];
+  flashcards?: StudyItem[];
   status?: string;
 }
