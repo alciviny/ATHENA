@@ -41,6 +41,7 @@ services:
       - "8000:8000" # Libera acesso localhost:8000 para você testar
     command: sh -c "python /app/brain/create_db.py && uvicorn brain.api.fastapi.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
+      PYTHONUNBUFFERED: 1
       # Conecta no Postgres interno
       DATABASE_URL: postgresql://user:pass@postgres:5432/athena
       # Conecta no Qdrant interno
@@ -48,6 +49,7 @@ services:
       QDRANT_PORT: 6333
       # Chave da API do Gemini
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy

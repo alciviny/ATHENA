@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import json
+import time
 from typing import List, Dict, Any
 
 import google.generativeai as genai
@@ -19,34 +20,56 @@ class FlashcardOutput(BaseModel):
     explicacao: str = Field(..., description="Explicação curta da resposta correta")
 
 class GeminiService(AIService):
-    # ATUALIZADO: Default para 2.0 Flash
-    def __init__(self, api_key: str, model: str = "models/gemini-2.0-flash"):
+    # MUDANÇA: 'gemini-1.5-flash' é o oficial estável para Free Tier.
+    def __init__(self, api_key: str, model: str = "models/gemini-1.5-flash"):
         genai.configure(api_key=api_key)
         self.model_name = model
         self.model = genai.GenerativeModel(model_name=model)
-        logger.info(f"GeminiService inicializado com modelo: {self.model_name}")
+        logger.info(f"[GEMINI-PROBE] GeminiService inicializado com modelo ESTÁVEL: {self.model_name}")
 
-    async def _retry_operation(self, func, *args, **kwargs):
+    async def _retry_operation(self, func, operation_name: str, *args, **kwargs):
+        """
+        Executa com retries e backoff agressivo para erro 429.
+        """
         retries = 3
-        base_delay = 2
+        base_delay = 5  
+
+        logger.info(f"[GEMINI-PROBE] 🚀 Iniciando: '{operation_name}'")
+
         for attempt in range(retries):
             try:
-                return await func(*args, **kwargs)
-            except google_exceptions.ResourceExhausted:
-                wait_time = base_delay * (2 ** attempt)
-                logger.warning(f"Cota (429). Tentativa {attempt+1}/{retries}. Aguardando {wait_time}s...")
+                start_time = time.time()
+                
+                # Executa a função
+                result = await func(*args, **kwargs)
+                
+                elapsed = time.time() - start_time
+                logger.info(f"[GEMINI-PROBE] ✅ SUCESSO na tentativa {attempt+1}! ({elapsed:.2f}s)")
+                return result
+
+            except google_exceptions.ResourceExhausted as e:
+                # Se der cota, espera 65s (para garantir o reset de 1 minuto da janela do Google)
+                wait_time = 65 + (20 * attempt)
+                logger.error(f"[GEMINI-PROBE] 🛑 COTA (429) na tentativa {attempt+1}.")
+                logger.warning(f"[GEMINI-PROBE] ⏳ DORMINDO {wait_time}s para resetar a janela...")
                 await asyncio.sleep(wait_time)
+                logger.info("[GEMINI-PROBE] ⏰ Acordando...")
+
             except Exception as e:
-                # Se o modelo não existir (404), não adianta tentar de novo
+                # Erros genéricos (rede, timeout)
                 if "404" in str(e) or "not found" in str(e).lower():
-                    logger.critical(f"MODELO NÃO ENCONTRADO: {e}")
+                    logger.critical(f"[GEMINI-PROBE] 💀 MODELO NÃO EXISTE: {e}")
                     raise e
-                raise e
+                
+                wait_time = base_delay * (2 ** attempt)
+                logger.error(f"[GEMINI-PROBE] 💥 Erro na tentativa {attempt+1}: {e}")
+                await asyncio.sleep(wait_time)
+
+        logger.critical(f"[GEMINI-PROBE] 💀 FALHA TOTAL em '{operation_name}'.")
         raise Exception("Falha após múltiplas tentativas.")
 
     async def generate_embedding(self, text: str) -> List[float]:
         async def _call_embed():
-            # ATUALIZADO: Usando text-embedding-004 que está na sua lista
             result = await asyncio.to_thread(
                 genai.embed_content,
                 model="models/text-embedding-004",
@@ -56,21 +79,22 @@ class GeminiService(AIService):
             return result['embedding']
 
         try:
-            return await self._retry_operation(_call_embed)
-        except Exception as e:
-            logger.error(f"Erro embedding: {e}")
+            return await self._retry_operation(_call_embed, f"Embedding")
+        except:
             return []
 
     async def analyze_student_errors(self, errors: List[ErrorEvent], subject: str) -> str:
         if not errors: return "Sem dados."
         prompt = f"Analise erros em {subject}: {errors}"
-        try:
-            resp = await self._retry_operation(lambda: asyncio.to_thread(self.model.generate_content, prompt)) # Lambda fix
-            # Nota: Versões novas da lib podem retornar corrotina direto, mas to_thread é seguro
-            # Se der erro de 'await', remova o to_thread no futuro.
-            if asyncio.iscoroutine(resp): resp = await resp
+        
+        async def _call_analyze():
+            resp = await asyncio.to_thread(self.model.generate_content, prompt)
             return resp.text
-        except: return "Erro na análise."
+
+        try:
+            return await self._retry_operation(_call_analyze, "Analyze Errors")
+        except: 
+            return "Erro na análise."
 
     async def generate_flashcard(self, topic: str, difficulty: int, context: str = "") -> Dict[str, Any]:
         prompt = f"""
@@ -80,20 +104,13 @@ class GeminiService(AIService):
         """
 
         async def _call_generate():
-            # Chamada direta para garantir compatibilidade
             response = await asyncio.to_thread(self.model.generate_content, prompt)
             text = response.text
-            # Limpeza JSON
             clean_text = text.replace("```json", "").replace("```", "").strip()
             return FlashcardOutput.model_validate_json(clean_text).model_dump()
 
         try:
-            return await self._retry_operation(_call_generate)
+            return await self._retry_operation(_call_generate, f"Card: {topic}")
         except Exception as e:
-            logger.error(f"Erro Card: {e}")
-            return {
-                "pergunta": f"Erro: {topic}",
-                "opcoes": ["-", "-", "-", "-"],
-                "correta_index": 0,
-                "explicacao": "Falha na IA."
-            }
+            # O UseCase já tem fallback, então aqui só relançamos
+            raise e

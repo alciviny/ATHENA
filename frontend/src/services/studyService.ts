@@ -1,36 +1,77 @@
 import axios from 'axios';
-import type { StudyPlan } from '../types/athena';
+import type { StudyPlan, StudyItem } from '../types/athena';
 
-// O proxy no vite.config.ts cuidará do redirecionamento.
+interface BackendSession {
+  topic: string;
+  items: BackendItem[];
+}
+
+interface BackendItem {
+  id: string;
+  difficulty?: number;
+  content: {
+    front: string;
+    back: string;
+    options: string[];
+    correct_index: number;
+  };
+}
+
 const api = axios.create({});
 
 export const studyService = {
-  /**
-   * Solicita ao Brain a geração de um plano adaptativo.
-   * Assume um studentId fixo para este exemplo.
-   */
   generatePlan: async (): Promise<StudyPlan> => {
     const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-    // O /api/ no início da URL será interceptado pelo proxy do Vite.
     const response = await api.post(`/api/study/generate-plan/${studentId}`);
-    return response.data;
+    
+    // --- ADAPTADOR (CORREÇÃO) ---
+    // O backend retorna uma estrutura aninhada (sessions -> items -> content).
+    // O frontend espera uma lista plana de 'study_items'.
+    
+    const backendData = response.data;
+    
+    // 1. Extrair todos os itens de todas as sessões
+    const flatItems: StudyItem[] = [];
+    
+    if (backendData.sessions && Array.isArray(backendData.sessions)) {
+        backendData.sessions.forEach((session: BackendSession) => {
+            if (session.items && Array.isArray(session.items)) {
+                session.items.forEach((item: BackendItem) => {
+                    // Mapeia do formato DTO (backend) para Interface (frontend)
+                    flatItems.push({
+                        id: item.id,
+                        type: 'flashcard',
+                        difficulty: item.difficulty || 0,
+                        
+                        // Mapeamento crucial aqui: content -> propriedades planas
+                        front: item.content.front || "Questão sem texto",
+                        options: item.content.options || [],
+                        correct_index: item.content.correct_index || 0,
+                        explanation: item.content.back || "Sem explicação",
+                        
+                        // Metadados simulados (pois o backend ainda não manda tudo isso)
+                        stability: 1.0, 
+                        current_retention: 0.9,
+                        topic_roi: 'NORMAL'
+                    });
+                });
+            }
+        });
+    }
+
+    // 2. Retorna o objeto no formato que o React espera
+    return {
+        id: backendData.id,
+        student_id: backendData.student_id,
+        created_at: backendData.created_at,
+        estimated_duration_minutes: 15, // Valor padrão
+        focus_level: "Deep Work",       // Valor padrão
+        study_items: flatItems          // A lista plana que o componente StudySession usa
+    };
   },
 
-  /**
-   * Envia o feedback de revisão (SRS)
-   */
-  submitReview: async (
-    nodeId: string,
-    grade: number,
-    responseTime: number
-  ) => {
-    // O mesmo studentId hardcoded usado em generatePlan.
-    // Em um app real, isso viria do estado de autenticação do usuário.
+  submitReview: async (nodeId: string, grade: number, responseTime: number) => {
     const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-
-    // O backend espera um booleano `success`, não o `grade` numérico.
-    // Mapeamento: 1 (De novo), 2 (Difícil) -> false
-    //             3 (Bom), 4 (Fácil) -> true
     const success = grade > 2;
 
     return api.post(`/api/study/review/${nodeId}`, {
@@ -40,4 +81,3 @@ export const studyService = {
     });
   },
 };
-

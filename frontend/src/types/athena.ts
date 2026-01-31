@@ -1,23 +1,34 @@
-export interface StudyItem {
-  id: string;
-  title: string;
-  type: 'flashcard' | 'problem';
-  difficulty: number;
-  question: string;
+export interface StudyContent {
+  front: string;
   options: string[];
   correct_index: number;
-  explanation: string;
-  // Novos metadados
-  stability: number;
-  current_retention: number;
-  topic_roi: 'VEIO_DE_OURO' | 'PANTANO' | 'NORMAL';
+  back: string;
+}
+
+export interface StudyItem {
+  id: string;
+  type: string;
+  content: StudyContent;
+  estimated_time_minutes: number;
+  difficulty: number;
+  status: string;
+}
+
+export interface StudySession {
+  id: string;
+  topic: string;
+  start_time: string;
+  duration_minutes: number;
+  items: StudyItem[];
+  focus_level: string;
+  method: string;
 }
 
 export interface StudyPlan {
   id: string;
   student_id: string;
+  goals: string[];
   created_at: string;
-  study_items: StudyItem[];
-  estimated_duration_minutes: number;
-  focus_level: string;
+  sessions: StudySession[]; // Nova estrutura hierárquica
+  status: string;
 }

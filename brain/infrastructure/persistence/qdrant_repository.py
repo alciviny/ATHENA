@@ -69,12 +69,14 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
                 return ""
 
             # 2. Define função de busca síncrona
+            # ATUALIZADO: Uso de query_points para compatibilidade com qdrant-client >= 1.10
             def _do_search():
-                return self._client.search(
+                response = self._client.query_points(
                     collection_name=self._collection,
-                    query_vector=query_vector,
+                    query=query_vector,
                     limit=limit,
                 )
+                return response.points  # Retorna a lista de hits dentro do objeto de resposta
 
             # 3. Executa em thread separada (Isola o erro de AsyncClient)
             results = await asyncio.to_thread(_do_search)
