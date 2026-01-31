@@ -1,25 +1,32 @@
-from pydantic import computed_field
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./athena.db"
+    # --- Banco de Dados ---
+    # Default para Postgres (Docker)
+    DATABASE_URL: str = "postgresql+asyncpg://athena_user:athena_password@db:5432/athena_db"
     USE_IN_MEMORY_DB: bool = False
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
-    QDRANT_API_KEY: str | None = None
-    QDRANT_COLLECTION: str = "athena_knowledge"
+    # --- Qdrant (Memória Vetorial) ---
+    QDRANT_URL: str = "http://qdrant:6333"
+    QDRANT_API_KEY: Optional[str] = None
 
-    GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "models/gemini-1.5-flash"
-    # OPENAI_API_KEY: str | None = None  # Deprecated
+    # --- IA: Google Gemini (Embeddings & Backup) ---
+    GEMINI_API_KEY: Optional[str] = None
+    # Usamos o 2.0 Flash como default seguro se o 1.5 não existir
+    GEMINI_MODEL: str = "models/gemini-2.0-flash" 
 
-    @computed_field
-    @property
-    def QDRANT_URL(self) -> str:
-        return f"http://{self.qdrant_host}:{self.qdrant_port}"
+    # --- IA: Groq (Texto Rápido - Llama 3) ---
+    # ADICIONADO AGORA:
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    # Configuração para ler do arquivo .env
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"  # Ignora variáveis extras no .env para não dar erro
+    )
 
 
 settings = Settings()

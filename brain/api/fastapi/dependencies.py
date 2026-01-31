@@ -10,7 +10,12 @@ from brain.application.services.roi_analysis_service import ROIAnalysisService
 from brain.application.services.memory_analysis_service import MemoryAnalysisService
 from brain.domain.services.intelligence_engine import IntelligenceEngine
 from brain.application.ports import repositories as ports
+
+# --- IMPORTS DOS SERVIÇOS DE IA ---
 from brain.infrastructure.llm.gemini_service import GeminiService
+from brain.infrastructure.llm.groq_service import GroqService
+from brain.infrastructure.llm.mock_ai_service import MockAIService
+
 from brain.infrastructure.persistence.qdrant_repository import QdrantKnowledgeVectorRepository
 from brain.application.ports.repositories import KnowledgeVectorRepository
 
@@ -141,17 +146,31 @@ def get_knowledge_vector_repository(
 # =========================================================
 
 def get_ai_service(settings: Settings = Depends(get_settings)) -> AIService:
-    if not settings.GEMINI_API_KEY:
-        from brain.infrastructure.llm.mock_ai_service import MockAIService
-        return MockAIService()
+    """
+    Fábrica de Serviços de IA com estratégia de Fallback:
+    1. GroqService (Híbrido) -> Preferencial (Rápido + Gratuito)
+    2. GeminiService (Puro) -> Backup (Cota limitada)
+    3. MockAIService -> Desenvolvimento/Testes
+    """
     
-    # --- CORREÇÃO FINAL: FORÇANDO FLASH ---
-    # Ignora o settings.GEMINI_MODEL e usa o modelo rápido diretamente
-    # para evitar problemas com .env antigos
-    return GeminiService(
-        api_key=settings.GEMINI_API_KEY,
-        model="models/gemini-2.0-flash-lite-001" 
-    )
+    # OPÇÃO 1: Groq (Híbrido: Groq p/ Texto + Gemini p/ Vetor)
+    if settings.GROQ_API_KEY:
+        return GroqService(
+            groq_api_key=settings.GROQ_API_KEY,
+            gemini_api_key=settings.GEMINI_API_KEY, # Necessário para embeddings
+            model=settings.GROQ_MODEL
+        )
+    
+    # OPÇÃO 2: Gemini Puro (Texto + Vetor)
+    # Útil se não tiver chave da Groq configurada
+    if settings.GEMINI_API_KEY:
+        return GeminiService(
+            api_key=settings.GEMINI_API_KEY,
+            model=settings.GEMINI_MODEL
+        )
+
+    # OPÇÃO 3: Mock (Sem chaves configuradas)
+    return MockAIService()
 
 def get_intelligence_engine() -> IntelligenceEngine:
     return IntelligenceEngine()
