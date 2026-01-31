@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Play, Brain, Clock, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { studyService } from './services/studyService';
-import type { StudyPlan, StudyItem } from './types/athena';
+import type { StudyPlan, StudyItem, StudySession } from './types/athena';
+import { StudySession as StudySessionComponent } from './components/StudySession';
 
 // --- TIPO INTERNO PARA COMPATIBILIDADE VISUAL ---
 interface UIStudyItem extends StudyItem {
@@ -48,7 +49,7 @@ function IntelligentStudyCard({ item, index }: { item: UIStudyItem; index: numbe
         <div className="flex items-center gap-4 text-xs text-slate-500 font-mono">
           <span className="flex items-center gap-1">
             <Brain className="w-3 h-3" />
-            Dif: {(item.difficulty).toFixed(1)}
+            Dif: {(item.difficulty ?? 0).toFixed(1)}
           </span>
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
@@ -81,7 +82,12 @@ function App() {
       setPlan(newPlan);
     } catch (error) {
       console.error("Falha ao gerar plano:", error);
-      alert("Erro ao conectar com Athena Brain.");
+      // Tratamento específico para timeout do serviço de geração
+      if (error instanceof Error && error.message === 'TIMEOUT_GENERATE_PLAN') {
+        alert('A geração do plano demorou demasiado (timeout). Tente novamente mais tarde.');
+      } else {
+        alert("Erro ao conectar com Athena Brain.");
+      }
     } finally {
       setLoading(false);
     }
@@ -96,11 +102,11 @@ function App() {
     let duration = 0;
     
     // Pega o foco da primeira sessão como principal (simplificação)
-    const focus = plan.sessions.length > 0 ? plan.sessions[0].focus_level : 'GERAL';
+    const focus = plan.sessions.length > 0 ? (plan.sessions[0].focus_level ?? 'GERAL') : 'GERAL';
 
-    plan.sessions.forEach(session => {
-      duration += session.duration_minutes;
-      session.items.forEach((item: StudyItem) => {
+    plan.sessions.forEach((session: StudySession) => {
+      duration += session.duration_minutes ?? 0;
+      session.items?.forEach((item: StudyItem) => {
         items.push({
           ...item,
           ui_title: session.topic, // Usa o tópico da sessão como título
@@ -122,14 +128,14 @@ function App() {
 
   // 1. Modo Sessão
   if (view === 'SESSION' && plan) {
-    // Nota: O componente StudySession também precisará de ajustes futuros para suportar a nova tipagem completa.
-    // Por enquanto, renderizamos um aviso se ele quebrar, ou passamos os dados adaptados se possível.
     return (
-       <div className="text-white p-10 text-center">
-         <h1 className="text-2xl mb-4">Sessão Iniciada</h1>
-         <p>Integração do modo "Sessão" pendente de atualização no componente StudySession.tsx</p>
-         <button onClick={() => setView('DASHBOARD')} className="mt-4 px-4 py-2 bg-emerald-600 rounded">Voltar</button>
-       </div>
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30 p-8">
+        <StudySessionComponent
+          plan={plan}
+          onComplete={() => setView('COMPLETED')}
+          onExit={() => setView('DASHBOARD')}
+        />
+      </div>
     );
   }
 
@@ -206,7 +212,7 @@ function App() {
                     {mainFocus}
                   </span>
                 </h2>
-                <p className="text-slate-400 mt-1">Gerado em {new Date(plan.created_at).toLocaleTimeString()}</p>
+                <p className="text-slate-400 mt-1">Gerado em {plan.created_at ? new Date(plan.created_at).toLocaleTimeString() : '—'}</p>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 text-emerald-400 font-mono text-xl font-bold">
