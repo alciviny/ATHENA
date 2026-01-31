@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import type { StudyItem, StudyPlan } from '../types/athena';
+import { useState, useMemo } from 'react';
+import type { StudyPlan, StudyItem } from '../types/athena';
 
 // --- NOVO COMPONENTE ---
 // Componente da Barra de Saúde da Memória
@@ -40,13 +40,30 @@ interface StudySessionProps {
 
 type StudyPhase = 'RECALL' | 'FEEDBACK';
 
-export function StudySession({ plan, onComplete }: StudySessionProps) {
+export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<StudyPhase>('RECALL');
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
-  const items = plan.study_items;
+  // Flatten all sessions -> items while keeping session metadata (topic)
+  const itemsWithMeta = useMemo(() => {
+    const arr: Array<{ item: StudyItem; topic?: string; sessionId?: string }> = [];
+    if (plan?.sessions && Array.isArray(plan.sessions)) {
+      plan.sessions.forEach((s) => {
+        (s.items || []).forEach((it) => arr.push({ item: it, topic: s.topic, sessionId: s.id }));
+      });
+    }
+    // Fallback to study_items if sessions were not provided
+    if (arr.length === 0 && plan?.study_items && Array.isArray(plan.study_items)) {
+      plan.study_items.forEach((it) => arr.push({ item: it, topic: undefined }));
+    }
+    return arr;
+  }, [plan]);
+
+  const items: StudyItem[] = itemsWithMeta.map((m) => m.item);
+
   const currentNode = useMemo(() => items[currentIndex], [items, currentIndex]);
+  const currentTopic = itemsWithMeta[currentIndex]?.topic;
 
   const handleSelectOption = (index: number) => {
     if (phase === 'RECALL') {
@@ -66,13 +83,29 @@ export function StudySession({ plan, onComplete }: StudySessionProps) {
   };
 
   if (!currentNode) {
-    return <div className="text-white">Sessão de estudo concluída ou sem itens.</div>;
+    return (
+      <div className="text-white text-center p-8">
+        <h2 className="text-2xl font-bold">Sessão de estudo concluída ou sem itens.</h2>
+        <button onClick={onExit} className="mt-4 px-4 py-2 bg-emerald-600 rounded">Voltar</button>
+      </div>
+    );
   }
 
-  const isCorrect = selectedOption === currentNode.correct_index;
+  const options = currentNode ? (currentNode.options ?? currentNode.content?.options ?? []) : [];
+  const correctIndex = currentNode ? (currentNode.correct_index ?? currentNode.content?.correct_index ?? 0) : 0;
+  const isCorrect = selectedOption === correctIndex;
 
   return (
     <div className="w-full max-w-2xl mx-auto p-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-sm text-slate-400">Tópico</h3>
+          <h2 className="text-xl font-bold text-white">{currentTopic ?? 'Geral'}</h2>
+        </div>
+        <div className="text-sm text-slate-400">
+          {currentIndex + 1}/{items.length}
+        </div>
+      </div>
       {phase === 'RECALL' && (
         <div className="text-center space-y-6 animate-fade-in">
           
@@ -84,9 +117,9 @@ export function StudySession({ plan, onComplete }: StudySessionProps) {
             />
           </div>
 
-          <h1 className="text-3xl font-bold text-white">{currentNode.question}</h1>
+          <h1 className="text-3xl font-bold text-white">{currentNode.front}</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentNode.options.map((option, index) => (
+            {(currentNode.options || currentNode.content?.options || []).map((option: string, index: number) => (
               <button
                 key={index}
                 onClick={() => handleSelectOption(index)}
@@ -105,7 +138,7 @@ export function StudySession({ plan, onComplete }: StudySessionProps) {
                 {isCorrect ? 'Correto!' : 'Incorreto'}
             </h2>
             <div className="p-6 bg-slate-800 rounded-lg text-left space-y-4">
-                <p className="text-white"><strong className="font-bold">Resposta correta:</strong> {currentNode.options[currentNode.correct_index]}</p>
+                <p className="text-white"><strong className="font-bold">Resposta correta:</strong> {options[correctIndex]}</p>
                 <p className="text-slate-300"><strong className="font-bold text-white">Explicação:</strong> {currentNode.explanation}</p>
             </div>
             <button
