@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { StudyPlan, StudyItem, StudySession } from '../types/athena';
+import type { StudyPlan, StudyItem, StudySession, RoiReport } from '../types/athena';
 
 interface BackendSession {
   topic: string;
@@ -17,11 +17,24 @@ interface BackendItem {
   };
 }
 
+interface BackendFlashcard {
+  pergunta: string;
+  explicacao: string;
+  opcoes?: string[];
+  correta_index?: number;
+}
+
 const api = axios.create({
   timeout: 120000, // 2 minutos
 });
 
 export const studyService = {
+  getRoiReport: async (): Promise<RoiReport> => {
+    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const response = await api.get(`/api/students/${studentId}/graph`);
+    return response.data;
+  },
+
   generatePlan: async (): Promise<StudyPlan> => {
     const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
     let response;
@@ -49,8 +62,8 @@ export const studyService = {
       // eslint-disable-next-line no-console
       console.log('studyService.generatePlan - backendData:', backendData);
       // Expor globalmente para fácil inspeção no DevTools
-      (window as any).__LAST_STUDY_PLAN_RESPONSE = backendData;
-    } catch (e) {
+      (window as unknown as { __LAST_STUDY_PLAN_RESPONSE: unknown }).__LAST_STUDY_PLAN_RESPONSE = backendData;
+    } catch {
       // ignore
     }
     
@@ -91,7 +104,7 @@ export const studyService = {
 
     // 2. Converte flashcards (se existirem) para o formato interno
     const flashcards = (backendData.flashcards && Array.isArray(backendData.flashcards))
-      ? backendData.flashcards.map((c: any, idx: number) => ({
+      ? backendData.flashcards.map((c: BackendFlashcard, idx: number) => ({
           id: `fc-${idx}-${c.pergunta?.slice(0,10)}`,
           type: 'flashcard',
           content: {
@@ -126,14 +139,16 @@ export const studyService = {
     };
   },
 
-  submitReview: async (nodeId: string, grade: number, responseTime: number) => {
+  submitReview: async (nodeId: string, grade: number, responseTime: number, rootCause?: string) => {
     const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-    const success = grade > 2;
+    const success = grade > 1; // Sucesso se for HARD, GOOD, ou EASY
 
     return api.post(`/api/study/review/${nodeId}`, {
       student_id,
       success,
+      grade,
       response_time_seconds: responseTime,
+      root_cause: rootCause,
     });
   },
 };

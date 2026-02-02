@@ -9,6 +9,7 @@ from brain.application.ports.ai_service import AIService
 from brain.application.services.roi_analysis_service import ROIAnalysisService
 from brain.application.services.memory_analysis_service import MemoryAnalysisService
 from brain.domain.services.intelligence_engine import IntelligenceEngine
+from brain.domain.services.semantic_propagator import SemanticPropagator
 from brain.application.ports import repositories as ports
 
 # --- IMPORTS DOS SERVIÇOS DE IA ---
@@ -179,10 +180,20 @@ def get_ai_service(settings: Settings = Depends(get_settings)) -> AIService:
 def get_intelligence_engine() -> IntelligenceEngine:
     return IntelligenceEngine()
 
+def get_semantic_propagator(
+    knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
+    vector_repo: KnowledgeVectorRepository = Depends(get_knowledge_vector_repository),
+) -> SemanticPropagator:
+    return SemanticPropagator(
+        node_repository=knowledge_repo,
+        vector_repository=vector_repo,
+    )
+
 async def get_roi_analysis_service(
-    engine: IntelligenceEngine = Depends(get_intelligence_engine),
+    knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
+    performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
 ) -> ROIAnalysisService:
-    return ROIAnalysisService(engine=engine)
+    return ROIAnalysisService(knowledge_repo=knowledge_repo, performance_repo=performance_repo)
 
 async def get_memory_analysis_service(
     engine: IntelligenceEngine = Depends(get_intelligence_engine),
@@ -230,11 +241,13 @@ async def get_record_review_use_case(
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     intelligence_engine: IntelligenceEngine = Depends(get_intelligence_engine),
+    semantic_propagator: SemanticPropagator = Depends(get_semantic_propagator),
 ) -> RecordReviewUseCase:
     return RecordReviewUseCase(
         performance_repo=performance_repo,
         node_repo=knowledge_repo,
         intelligence_engine=intelligence_engine,
+        semantic_propagator=semantic_propagator,
     )
 
 
@@ -245,7 +258,7 @@ async def get_start_exam_simulator_use_case(
     cognitive_profile_repo: ports.CognitiveProfileRepository = Depends(get_cognitive_profile_repository),
     vector_repo: ports.KnowledgeVectorRepository = Depends(get_knowledge_vector_repository),
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
-    ai_service: AIService = Depends(get_ai_service),
+ai_service: AIService = Depends(get_ai_service),
 ) -> StartExamSimulatorUseCase:
     return StartExamSimulatorUseCase(
         student_repo=student_repo,

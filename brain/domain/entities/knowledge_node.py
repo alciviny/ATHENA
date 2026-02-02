@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from enum import IntEnum
 from uuid import UUID
-from typing import Optional
+from typing import Optional, List
 
 
 class ReviewGrade(IntEnum):
@@ -23,6 +23,7 @@ class KnowledgeNode:
     id: UUID
     name: str
     subject: str
+    dependency_ids: List[UUID] = field(default_factory=list)
     weight_in_exam: float = 0.0
     stability: float = 0.0
     difficulty: float = 5.0

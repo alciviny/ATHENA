@@ -38,14 +38,61 @@ export interface StudySession {
 }
 
 export interface StudyPlan {
+
   id: string;
+
   student_id: string;
+
   goals?: string[];
+
   created_at?: string;
+
   estimated_duration_minutes?: number;
+
   focus_level?: string;
+
   study_items?: StudyItem[];
+
   sessions?: StudySession[];
+
   flashcards?: StudyItem[];
+
   status?: string;
+
 }
+
+
+
+export interface KnowledgeNode {
+
+    id: string;
+
+    name: string;
+
+    roi_score: number;
+
+    difficulty: number;
+
+    stability: number;
+
+    weight?: number;
+
+    status?: string;
+
+    x?: number;
+
+    y?: number;
+
+  }
+
+  
+
+  export interface RoiReport {
+
+    nodes: KnowledgeNode[];
+
+    links: { source: string; target: string; }[];
+
+  }
+
+  

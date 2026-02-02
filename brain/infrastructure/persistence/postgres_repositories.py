@@ -68,6 +68,7 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
                 metric=PerformanceMetric(model.metric),
                 value=model.value,
                 baseline=model.baseline,
+                root_cause=model.root_cause,
                 event_metadata=model.event_metadata or {},
             )
             for model in event_models
@@ -90,6 +91,7 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
                 metric=PerformanceMetric(model.metric),
                 value=model.value,
                 baseline=model.baseline,
+                root_cause=model.root_cause,
                 event_metadata=model.event_metadata or {},
             )
             for model in event_models
@@ -109,6 +111,7 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
             metric=event.metric.value,
             value=event.value,
             baseline=event.baseline,
+            root_cause=event.root_cause,
             event_metadata=event.event_metadata,
         )
         self.db.add(model)
@@ -120,13 +123,17 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         self.db = db
 
     async def get_full_graph(self) -> List[KnowledgeNode]:
-        result = await self.db.execute(select(KnowledgeNodeModel))
-        node_models = result.scalars().all()
+        query = select(KnowledgeNodeModel).options(
+            selectinload(KnowledgeNodeModel.dependencies)
+        )
+        result = await self.db.execute(query)
+        node_models = result.scalars().unique().all()
         return [
             KnowledgeNode(
                 id=model.id,
                 name=model.name,
                 subject=model.subject,
+                dependency_ids=[dep.id for dep in model.dependencies],
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
                 stability=model.stability,

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { StudyPlan, StudyItem } from '../types/athena';
+import { studyService } from '../services/studyService';
 
 // --- NOVO COMPONENTE ---
 // Componente da Barra de Saúde da Memória
@@ -31,6 +32,40 @@ function MemoryHealthBar({ retention, stability }: { retention: number, stabilit
   );
 }
 
+interface RootCauseSelectorProps {
+  selectedCause: string | null;
+  onSelectCause: (cause: string) => void;
+}
+
+const rootCauseOptions = [
+  { id: 'lack_of_base', label: 'Falta de Base' },
+  { id: 'attention', label: 'Falta de Atenção' },
+  { id: 'forgetting', label: 'Esquecimento Puro' },
+  { id: 'stress', label: 'Pressão do Tempo' },
+];
+
+function RootCauseSelector({ selectedCause, onSelectCause }: RootCauseSelectorProps) {
+  return (
+    <div className="mt-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+      <h3 className="text-sm font-bold text-center text-red-400 mb-3">Qual foi a causa principal do erro?</h3>
+      <div className="flex flex-wrap justify-center gap-2">
+        {rootCauseOptions.map((cause) => (
+          <button
+            key={cause.id}
+            onClick={() => onSelectCause(cause.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-all duration-200 border
+              ${selectedCause === cause.id
+                ? 'bg-red-500/20 text-red-300 border-red-500/50 ring-2 ring-red-500/30'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:border-slate-600'
+              }`}
+          >
+            {cause.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface StudySessionProps {
   plan: StudyPlan;
@@ -44,7 +79,14 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<StudyPhase>('RECALL');
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState(Date.now());
+  const [selectedRootCause, setSelectedRootCause] = useState<string | null>(null);
 
+
+  useEffect(() => {
+    setStartTime(Date.now());
+    setSelectedRootCause(null); // Reseta a causa a cada novo card
+  }, [currentIndex]);
   // Flatten all sessions -> items while keeping session metadata (topic)
   const itemsWithMeta = useMemo(() => {
     const arr: Array<{ item: StudyItem; topic?: string; sessionId?: string, focus_level?: string }> = [];
@@ -74,15 +116,37 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
     }
   };
 
-  const handleNext = () => {
-    if (currentIndex < items.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setPhase('RECALL');
-      setSelectedOption(null);
-    } else {
-      onComplete();
+  const handleNext = async () => {
+    const responseTime = (Date.now() - startTime) / 1000;
+    const correctIndex = currentNode.correct_index ?? currentNode.content?.correct_index ?? 0;
+    const isCorrect = selectedOption === correctIndex;
+    
+    // Mapeamento de 'isCorrect' e 'selectedRootCause' para 'grade'
+    // 1: AGAIN, 2: HARD, 3: GOOD, 4: EASY
+    let grade = 3; // GOOD por padrão
+    if (!isCorrect) {
+      grade = 1; // AGAIN
+    } else if (responseTime < 10) { // Exemplo de lógica para EASY
+      grade = 4;
+    } else if (responseTime > 30) { // Exemplo de lógica para HARD
+      grade = 2;
     }
-  };
+    
+    try {
+        await studyService.submitReview(currentNode.id, grade, responseTime, isCorrect ? undefined : selectedRootCause);
+    } catch (error) {
+        console.error("Failed to submit review:", error);
+        // Opcional: mostrar uma notificação de erro para o usuário
+    }
+    
+    if (currentIndex < items.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+        setPhase('RECALL');
+        setSelectedOption(null);
+    } else {
+        onComplete();
+    }
+};
 
   if (!currentNode) {
     return (
@@ -164,6 +228,14 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
                 <p className="text-white"><strong className="font-bold">Resposta correta:</strong> {options[correctIndex]}</p>
                 <p className="text-slate-300"><strong className="font-bold text-white">Explicação:</strong> {currentNode.explanation}</p>
             </div>
+            
+            {!isCorrect && (
+              <RootCauseSelector
+                selectedCause={selectedRootCause}
+                onSelectCause={setSelectedRootCause}
+              />
+            )}
+
             <button
                 onClick={handleNext}
                 className="w-full p-4 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500 transition-colors duration-200"

@@ -10,6 +10,8 @@ from brain.domain.entities.performance_event import (
 )
 from brain.domain.entities.knowledge_node import KnowledgeNode, ReviewGrade
 from brain.domain.services.intelligence_engine import IntelligenceEngine
+from brain.domain.services.semantic_propagator import SemanticPropagator
+from brain.domain.entities.error_event import ErrorRootCause
 
 
 class RecordReviewUseCase:
@@ -26,10 +28,12 @@ class RecordReviewUseCase:
         performance_repo: PerformanceRepository,
         node_repo: KnowledgeRepository,
         intelligence_engine: IntelligenceEngine,
+        semantic_propagator: SemanticPropagator,
     ):
         self.performance_repo = performance_repo
         self.node_repo = node_repo
         self.intelligence_engine = intelligence_engine
+        self.semantic_propagator = semantic_propagator
 
     async def execute(
         self,
@@ -38,6 +42,7 @@ class RecordReviewUseCase:
         success: bool,
         response_time_seconds: float = 0.0,
         explicit_grade: Optional[int] = None, # Novo parâmetro opcional
+        root_cause: Optional[ErrorRootCause] = None,
     ):
         print(f"--- Processing Review for Node {node_id} ---")
 
@@ -70,12 +75,22 @@ class RecordReviewUseCase:
             node=node,
             grade=grade,
             history=node_history,
+            root_cause=root_cause,
         )
 
-        # 5. Persistir
+        # 5. Propagação Semântica (se necessário)
+        if not success and root_cause == ErrorRootCause.LACK_OF_BASE:
+            await self.semantic_propagator.propagate_boost(
+                origin_node_id=updated_node.id,
+                factor=1.5, # Penalidade mais forte para falta de base
+                neighborhood_size=3,
+            )
+
+
+        # 6. Persistir
         await self.node_repo.update(updated_node)
 
-        # 6. Registrar evento
+        # 7. Registrar evento
         event = PerformanceEvent(
             id=uuid4(),
             student_id=student_id,
@@ -85,6 +100,7 @@ class RecordReviewUseCase:
             metric=PerformanceMetric.ACCURACY,
             value=1.0 if grade != ReviewGrade.AGAIN else 0.0,
             baseline=updated_node.stability,
+            root_cause=root_cause.value if root_cause else None,
             event_metadata={
                 "response_time": response_time_seconds,
                 "grade_value": grade.value,

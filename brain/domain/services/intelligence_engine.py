@@ -1,10 +1,11 @@
 import math
 from datetime import datetime, timezone, timedelta
-from typing import List
+from typing import List, Optional
 from statistics import mean
 
 from brain.domain.entities.performance_event import PerformanceEvent, PerformanceMetric
 from brain.domain.entities.knowledge_node import KnowledgeNode, ReviewGrade
+from brain.domain.entities.error_event import ErrorRootCause
 
 
 class IntelligenceEngine:
@@ -73,6 +74,7 @@ class IntelligenceEngine:
         node: KnowledgeNode,
         grade: ReviewGrade,
         history: List[PerformanceEvent],
+        root_cause: Optional[ErrorRootCause] = None,
     ) -> KnowledgeNode:
         """
         Processa uma revisão e retorna o nó atualizado.
@@ -82,7 +84,7 @@ class IntelligenceEngine:
         if node.reps == 0:
             self._apply_first_review(node, grade)
         else:
-            self._apply_subsequent_review(node, grade, now)
+            self._apply_subsequent_review(node, grade, now, root_cause)
 
         node.reps += 1
         node.last_reviewed_at = now
@@ -110,6 +112,7 @@ class IntelligenceEngine:
         node: KnowledgeNode,
         grade: ReviewGrade,
         now: datetime,
+        root_cause: Optional[ErrorRootCause] = None,
     ) -> None:
         """
         Atualização após revisões subsequentes.
@@ -125,11 +128,17 @@ class IntelligenceEngine:
             grade,
         )
 
+        penalty_factor = 1.0
+        if root_cause == ErrorRootCause.ATTENTION:
+            penalty_factor = 0.5 # Penalidade menor para desatenção
+        elif root_cause == ErrorRootCause.LACK_OF_BASE:
+            node.weight *= 2.0 # Aumenta o peso agressivamente
+
         if grade == ReviewGrade.AGAIN:
             node.lapses += 1
             node.stability = node.stability * self._FSRS_WEIGHTS[4] * (
                 (elapsed_days / node.stability) ** self._FSRS_WEIGHTS[13]
-            )
+            ) * penalty_factor
             node.weight *= 1.5
         elif grade == ReviewGrade.HARD:
             node.stability = node.stability * self._FSRS_WEIGHTS[6] * (
@@ -145,7 +154,6 @@ class IntelligenceEngine:
             )
 
         node.stability = max(self._MIN_STABILITY, node.stability)
-
     def _retrievability(
         self,
         elapsed_days: int,
