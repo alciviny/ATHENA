@@ -14,6 +14,7 @@ from brain.application.dto.study_plan_dto import StudyPlanDTO, StudyPlanOutputDT
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.record_review import RecordReviewUseCase
 from brain.application.use_cases.start_exam_simulator import StartExamSimulatorUseCase
+from brain.domain.entities.error_event import ErrorRootCause
 
 router = APIRouter()
 
@@ -58,6 +59,7 @@ class ReviewSchema(BaseModel):
     success: bool
     response_time_seconds: float = 0.0
     grade: Optional[int] = None
+    root_cause: Optional[ErrorRootCause] = None
 
 
 @router.post("/review/{node_id}")
@@ -76,6 +78,7 @@ async def record_review(
             success=review_data.success,
             response_time_seconds=review_data.response_time_seconds,
             explicit_grade=review_data.grade,
+            root_cause=review_data.root_cause,
         )
         return updated_node
     except ValueError as e:

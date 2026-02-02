@@ -21,6 +21,16 @@ class ErrorType(str, Enum):
     GESTAO_TEMPO = "gestao_tempo"
 
 
+class ErrorRootCause(str, Enum):
+    """
+    Causa raiz de um erro, para diferenciar falta de base de desatenção.
+    """
+    LACK_OF_BASE = "lack_of_base"
+    ATTENTION = "attention"
+    FORGETTING = "forgetting"
+    STRESS = "stress"
+
+
 @dataclass(frozen=True)
 class ErrorEvent:
     """

@@ -85,6 +85,7 @@ class PerformanceEventModel(Base):
     metric = Column(String, nullable=False)
     value = Column(Float, default=0.0)
     baseline = Column(Float, default=0.0)
+    root_cause = Column(String, nullable=True)
     event_metadata = Column(String, nullable=True)
 
 

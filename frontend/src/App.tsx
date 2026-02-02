@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Play, Brain, Clock, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Play, Brain, Clock, TrendingUp, CheckCircle2, List, BarChart } from 'lucide-react';
 import { studyService } from './services/studyService';
-import type { StudyPlan, StudyItem, StudySession } from './types/athena';
+import type { StudyPlan, StudyItem, StudySession, KnowledgeNode } from './types/athena';
 import { StudySession as StudySessionComponent } from './components/StudySession';
 import Flashcards from './components/Flashcards';
+import KnowledgeGraph from './components/KnowledgeGraph';
 
 // --- TIPO INTERNO PARA COMPATIBILIDADE VISUAL ---
 interface UIStudyItem extends StudyItem {
@@ -74,6 +75,14 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<StudyPlan | null>(null);
   const [view, setView] = useState<AppView>('DASHBOARD');
+  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+
+  const handleNodeClick = (node: KnowledgeNode) => {
+    // For now, we'll just log the node and start the session.
+    // In the future, we could create a specific session for this node.
+    console.log("Node clicked:", node);
+    startSession();
+  };
 
   const handleGeneratePlan = async () => {
     setLoading(true);
@@ -217,34 +226,49 @@ function App() {
                 </h2>
                 <p className="text-slate-400 mt-1">Gerado em {plan.created_at ? new Date(plan.created_at).toLocaleTimeString() : '—'}</p>
               </div>
-              <div className="text-right">
+              <div className="flex flex-col items-end gap-2">
                 <div className="flex items-center gap-1 text-emerald-400 font-mono text-xl font-bold">
                   <Clock className="w-5 h-5" />
                   {totalDuration} min
                 </div>
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-2 rounded-full bg-slate-800 p-1 border border-slate-700">
+                    <button onClick={() => setViewMode('list')} title="View as list" className={`px-3 py-1 text-xs rounded-full transition-colors ${viewMode === 'list' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>
+                        <List className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setViewMode('graph')} title="View as graph" className={`px-3 py-1 text-xs rounded-full transition-colors ${viewMode === 'graph' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>
+                        <BarChart className="w-4 h-4" />
+                    </button>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3 mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                  Sequência de Otimização
-                </h3>
-                <span className="text-xs text-slate-600 font-mono">
-                  {flatItems.length} atividades
-                </span>
-              </div>
+            {viewMode === 'list' ? (
+              <div className="space-y-3 mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                    Sequência de Otimização
+                  </h3>
+                  <span className="text-xs text-slate-600 font-mono">
+                    {flatItems.length} atividades
+                  </span>
+                </div>
 
-              <div className="space-y-2">
-                {flatItems.map((item, index) => (
-                  <IntelligentStudyCard 
-                    key={item.id} 
-                    item={item} 
-                    index={index} 
-                  />
-                ))}
+                <div className="space-y-2">
+                  {flatItems.map((item, index) => (
+                    <IntelligentStudyCard 
+                      key={item.id} 
+                      item={item} 
+                      index={index} 
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="mb-8">
+                <KnowledgeGraph onNodeClick={handleNodeClick} />
+              </div>
+            )}
 
             <button 
               onClick={startSession}

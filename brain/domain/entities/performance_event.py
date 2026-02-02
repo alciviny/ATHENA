@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
+from typing import Optional
 
 
 class PerformanceEventType(str, Enum):
@@ -40,6 +41,7 @@ class PerformanceEvent:
     metric: PerformanceMetric
     value: float
     baseline: float
+    root_cause: Optional[str] = None
     event_metadata: dict = field(default_factory=dict)
 
     # ==============================
