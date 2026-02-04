@@ -111,13 +111,22 @@ class RecordReviewUseCase:
 
         await self.performance_repo.save(event)
 
-        return {
+        # 8. Lógica de Gatilho para o Desafio de Feynman
+        response_data = {
             "status": "recorded",
             "node": updated_node.name,
             "new_stability": updated_node.stability,
             "next_review": updated_node.next_review_at,
             "grade_used": grade.name,
+            "lapses": updated_node.lapses,
         }
+
+        if updated_node.lapses >= 3 and root_cause == ErrorRootCause.LACK_OF_BASE:
+            print(f"--- FEYNMAN TRIGGERED for Node {node_id} ---")
+            response_data["trigger_feynman"] = True
+
+
+        return response_data
 
     def _infer_grade(self, success: bool, duration: float) -> ReviewGrade:
         if not success:

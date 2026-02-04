@@ -25,6 +25,7 @@ from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUse
 from brain.application.use_cases.analyze_student_performance import AnalyzeStudentPerformance
 from brain.application.use_cases.record_review import RecordReviewUseCase
 from brain.application.use_cases.start_exam_simulator import StartExamSimulatorUseCase
+from brain.application.use_cases.validate_feynman_explanation import ValidateFeynmanExplanation
 
 # Adaptive Rules
 from brain.domain.policies.rules.stress_test_rule import StressTestRule
@@ -234,6 +235,17 @@ async def get_analyze_student_performance_use_case(
 ) -> AnalyzeStudentPerformance:
     return AnalyzeStudentPerformance(
         error_event_repository=error_event_repository,
+        ai_service=ai_service,
+    )
+
+async def get_validate_feynman_explanation_use_case(
+    node_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
+    performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
+    ai_service: AIService = Depends(get_ai_service),
+) -> ValidateFeynmanExplanation:
+    return ValidateFeynmanExplanation(
+        node_repository=node_repo,
+        performance_repository=performance_repo,
         ai_service=ai_service,
     )
 

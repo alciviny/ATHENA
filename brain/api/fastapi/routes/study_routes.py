@@ -8,15 +8,23 @@ from brain.api.fastapi.dependencies import (
     get_generate_study_plan_use_case,
     get_record_review_use_case,
     get_start_exam_simulator_use_case,
+    get_validate_feynman_explanation_use_case,
 )
 # --- CORREÇÃO: Importamos o DTO correto (criado no passo anterior) ---
 from brain.application.dto.study_plan_dto import StudyPlanDTO, StudyPlanOutputDTO
 from brain.application.use_cases.generate_study_plan import GenerateStudyPlanUseCase
 from brain.application.use_cases.record_review import RecordReviewUseCase
 from brain.application.use_cases.start_exam_simulator import StartExamSimulatorUseCase
+from brain.application.use_cases.validate_feynman_explanation import ValidateFeynmanExplanation
 from brain.domain.entities.error_event import ErrorRootCause
 
 router = APIRouter()
+
+
+class FeynmanValidationSchema(BaseModel):
+    student_id: UUID
+    node_id: UUID
+    explanation: str
 
 
 # --- CORREÇÃO: Atualizamos o response_model para StudyPlanDTO ---
@@ -86,3 +94,28 @@ async def record_review(
     except Exception as e:
         print(f"Error processing review: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+
+
+@router.post("/feynman/validate")
+async def validate_feynman_explanation(
+    validation_data: FeynmanValidationSchema,
+    use_case: ValidateFeynmanExplanation = Depends(get_validate_feynman_explanation_use_case),
+):
+    """
+    Validates a student's explanation for a given knowledge node using the Feynman technique.
+    """
+    try:
+        result = await use_case.execute(
+            student_id=validation_data.student_id,
+            node_id=validation_data.node_id,
+            explanation=validation_data.explanation,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        # Log the exception for debugging
+        print(f"Unexpected error during Feynman validation: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during validation.")

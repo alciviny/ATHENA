@@ -80,7 +80,7 @@ class PerformanceEventModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id = Column(UUID(as_uuid=True), nullable=False)
     event_type = Column(String, nullable=False)
-    occurred_at = Column(String, nullable=False)
+    occurred_at = Column(DateTime, nullable=False)
     topic = Column(String, nullable=True)
     metric = Column(String, nullable=False)
     value = Column(Float, default=0.0)

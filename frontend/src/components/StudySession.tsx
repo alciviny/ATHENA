@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import type { StudyPlan, StudyItem } from '../types/athena';
+import type { StudyPlan, StudyItem, FeynmanResult } from '../types/athena';
 import { studyService } from '../services/studyService';
 
 // --- NOVO COMPONENTE ---
@@ -38,10 +38,10 @@ interface RootCauseSelectorProps {
 }
 
 const rootCauseOptions = [
-  { id: 'lack_of_base', label: 'Falta de Base' },
-  { id: 'attention', label: 'Falta de Atenção' },
-  { id: 'forgetting', label: 'Esquecimento Puro' },
-  { id: 'stress', label: 'Pressão do Tempo' },
+  { id: 'LACK_OF_BASE', label: 'Falta de Base' },
+  { id: 'ATTENTION', label: 'Falta de Atenção' },
+  { id: 'FORGETTING', label: 'Esquecimento Puro' },
+  { id: 'STRESS', label: 'Pressão do Tempo' },
 ];
 
 function RootCauseSelector({ selectedCause, onSelectCause }: RootCauseSelectorProps) {
@@ -73,7 +73,7 @@ interface StudySessionProps {
   onExit: () => void;
 }
 
-type StudyPhase = 'RECALL' | 'FEEDBACK';
+type StudyPhase = 'RECALL' | 'FEEDBACK' | 'FEYNMAN';
 
 export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -81,6 +81,9 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [startTime, setStartTime] = useState(Date.now());
   const [selectedRootCause, setSelectedRootCause] = useState<string | null>(null);
+  const [feynmanExplanation, setFeynmanExplanation] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [feynmanResult, setFeynmanResult] = useState<FeynmanResult | null>(null);
 
 
   useEffect(() => {
@@ -120,33 +123,50 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
     const responseTime = (Date.now() - startTime) / 1000;
     const correctIndex = currentNode.correct_index ?? currentNode.content?.correct_index ?? 0;
     const isCorrect = selectedOption === correctIndex;
-    
-    // Mapeamento de 'isCorrect' e 'selectedRootCause' para 'grade'
-    // 1: AGAIN, 2: HARD, 3: GOOD, 4: EASY
-    let grade = 3; // GOOD por padrão
-    if (!isCorrect) {
-      grade = 1; // AGAIN
-    } else if (responseTime < 10) { // Exemplo de lógica para EASY
-      grade = 4;
-    } else if (responseTime > 30) { // Exemplo de lógica para HARD
-      grade = 2;
-    }
-    
+
     try {
-        await studyService.submitReview(currentNode.id, grade, responseTime, isCorrect ? undefined : selectedRootCause);
+      const reviewResponse = await studyService.submitReview(
+        currentNode.id,
+        isCorrect,
+        responseTime,
+        null, // explicit_grade
+        isCorrect ? undefined : selectedRootCause
+      );
+
+      if (reviewResponse.trigger_feynman) {
+        setPhase('FEYNMAN');
+        setFeynmanResult(null);
+        setFeynmanExplanation('');
+        return;
+      }
+
     } catch (error) {
         console.error("Failed to submit review:", error);
-        // Opcional: mostrar uma notificação de erro para o usuário
     }
     
     if (currentIndex < items.length - 1) {
         setCurrentIndex(currentIndex + 1);
         setPhase('RECALL');
         setSelectedOption(null);
+        setFeynmanResult(null);
     } else {
         onComplete();
     }
-};
+  };
+
+  const handleFeynmanSubmit = async () => {
+    setIsAnalyzing(true);
+    setFeynmanResult(null);
+    try {
+      const result = await studyService.validateFeynman(currentNode.id, feynmanExplanation);
+      setFeynmanResult(result);
+    } catch (error) {
+      console.error("Failed to validate Feynman explanation:", error);
+      // Optionally, set an error state to show a message to the user
+    }
+    setIsAnalyzing(false);
+    setPhase('FEEDBACK'); // Move to feedback phase after analysis
+  };
 
   if (!currentNode) {
     return (
@@ -160,6 +180,8 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const options = currentNode ? (currentNode.options ?? currentNode.content?.options ?? []) : [];
   const correctIndex = currentNode ? (currentNode.correct_index ?? currentNode.content?.correct_index ?? 0) : 0;
   const isCorrect = selectedOption === correctIndex;
+
+  const feynmanSuccess = feynmanResult && feynmanResult.score > 0.8;
 
   return (
     <div className="w-full max-w-2xl mx-auto p-8">
@@ -219,29 +241,100 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
         </div>
       )}
 
-      {phase === 'FEEDBACK' && selectedOption !== null && (
+      {phase === 'FEYNMAN' && (
         <div className="text-center space-y-6 animate-fade-in">
-            <h2 className={`text-4xl font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                {isCorrect ? 'Correto!' : 'Incorreto'}
-            </h2>
-            <div className="p-6 bg-slate-800 rounded-lg text-left space-y-4">
-                <p className="text-white"><strong className="font-bold">Resposta correta:</strong> {options[correctIndex]}</p>
-                <p className="text-slate-300"><strong className="font-bold text-white">Explicação:</strong> {currentNode.explanation}</p>
+          <h2 className="text-3xl font-bold text-amber-400">Desafio de Feynman</h2>
+          <p className="text-slate-300">Você errou este conceito por falta de base. Explique <strong className="text-white">{currentNode.front}</strong> com suas próprias palavras, como se estivesse ensinando a alguém.</p>
+          
+          {isAnalyzing ? (
+            <div className="p-6 bg-slate-900 rounded-lg border border-slate-700">
+              <p className="text-white animate-pulse">Mentor Athena analisando a sua lógica...</p>
             </div>
-            
-            {!isCorrect && (
-              <RootCauseSelector
-                selectedCause={selectedRootCause}
-                onSelectCause={setSelectedRootCause}
-              />
-            )}
+          ) : (
+            <textarea
+              value={feynmanExplanation}
+              onChange={(e) => setFeynmanExplanation(e.target.value)}
+              className="w-full h-40 p-4 bg-slate-900 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              placeholder="Sua explicação aqui..."
+            />
+          )}
 
-            <button
+          <button
+            onClick={handleFeynmanSubmit}
+            disabled={isAnalyzing || feynmanExplanation.length < 20}
+            className="w-full p-4 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500 transition-colors duration-200 disabled:bg-slate-700 disabled:cursor-not-allowed"
+          >
+            {isAnalyzing ? "Analisando..." : "Validar Explicação"}
+          </button>
+        </div>
+      )}
+
+      {phase === 'FEEDBACK' && (
+        <div className="text-center space-y-6 animate-fade-in">
+          {feynmanResult ? (
+            // Feynman Feedback
+            <div className="space-y-6">
+              <h2 className={`text-4xl font-bold ${feynmanSuccess ? 'text-green-400' : 'text-red-400'}`}>
+                {feynmanSuccess ? 'Excelente Explicação!' : 'Quase lá!'}
+              </h2>
+              <div className="p-6 bg-slate-800 rounded-lg text-left space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white">Score de Precisão:</span>
+                  <div className="w-1/2 bg-slate-700 rounded-full h-2.5">
+                    <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${feynmanResult.score * 100}%` }}></div>
+                  </div>
+                  <span className="font-bold text-white">{(feynmanResult.score * 100).toFixed(0)}%</span>
+                </div>
+
+                {feynmanResult.missing_concepts && feynmanResult.missing_concepts.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-white mb-2">Conceitos Faltantes:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {feynmanResult.missing_concepts.map((concept, i) => (
+                        <span key={i} className="px-2 py-1 bg-rose-500/20 text-rose-300 text-xs font-semibold rounded-full">{concept}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div>
+                  <h4 className="font-bold text-white mb-2">Feedback do Mentor:</h4>
+                  <p className="text-slate-300">{feynmanResult.feedback}</p>
+                </div>
+              </div>
+              <button
                 onClick={handleNext}
                 className="w-full p-4 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500 transition-colors duration-200"
-            >
-                Próximo
-            </button>
+              >
+                {feynmanSuccess ? 'Próximo' : 'Entendi, revisar teoria'}
+              </button>
+            </div>
+          ) : selectedOption !== null ? (
+            // Regular Quiz Feedback
+            <>
+              <h2 className={`text-4xl font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
+                  {isCorrect ? 'Correto!' : 'Incorreto'}
+              </h2>
+              <div className="p-6 bg-slate-800 rounded-lg text-left space-y-4">
+                  <p className="text-white"><strong className="font-bold">Resposta correta:</strong> {options[correctIndex]}</p>
+                  <p className="text-slate-300"><strong className="font-bold text-white">Explicação:</strong> {currentNode.explanation}</p>
+              </div>
+              
+              {!isCorrect && (
+                <RootCauseSelector
+                  selectedCause={selectedRootCause}
+                  onSelectCause={setSelectedRootCause}
+                />
+              )}
+
+              <button
+                  onClick={handleNext}
+                  className="w-full p-4 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500 transition-colors duration-200"
+              >
+                  Próximo
+              </button>
+            </>
+          ) : null}
         </div>
       )}
     </div>
