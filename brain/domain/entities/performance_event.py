@@ -12,6 +12,7 @@ class PerformanceEventType(str, Enum):
     STUDY_SESSION = "study_session"
     MOCK_EXAM = "mock_exam"
     QUIZ = "quiz"
+    FEYNMAN_VALIDATION = "feynman_validation"
 
 
 class PerformanceMetric(str, Enum):

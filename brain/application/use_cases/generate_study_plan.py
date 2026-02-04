@@ -59,7 +59,7 @@ class GenerateStudyPlanUseCase:
         self.ai_service = ai_service
         self.adaptive_rules = adaptive_rules or []
         self.memory_service = MemoryAnalysisService()
-        self.roi_service = ROIAnalysisService()
+        self.roi_service = ROIAnalysisService(knowledge_repo=knowledge_repo, performance_repo=performance_repo)
         # Configuração de fallback controlado: em testes antigos onde não se passa
         # Settings, permitimos o fallback falso por compatibilidade. Em produção,
         # passe um `Settings` com `ALLOW_FAKE_FALLBACK=False` para fail-fast.
@@ -174,7 +174,8 @@ class GenerateStudyPlanUseCase:
                         raise RuntimeError("AI services unavailable and fake fallback is disabled (FAIL_FAST).")
 
                 try:
-                    rag_context = await self.vector_repo.search_context(query=node.name, limit=1)
+                    query_vector = await self.ai_service.generate_embedding(node.name)
+                    rag_context = await self.vector_repo.search_context(query_vector=query_vector, limit=1)
                 except Exception:
                     rag_context = None
 

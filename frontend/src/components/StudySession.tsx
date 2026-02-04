@@ -38,10 +38,10 @@ interface RootCauseSelectorProps {
 }
 
 const rootCauseOptions = [
-  { id: 'LACK_OF_BASE', label: 'Falta de Base' },
-  { id: 'ATTENTION', label: 'Falta de Atenção' },
-  { id: 'FORGETTING', label: 'Esquecimento Puro' },
-  { id: 'STRESS', label: 'Pressão do Tempo' },
+  { id: 'lack_of_base', label: 'Falta de Base' },
+  { id: 'attention', label: 'Falta de Atenção' },
+  { id: 'forgetting', label: 'Esquecimento Puro' },
+  { id: 'stress', label: 'Pressão do Tempo' },
 ];
 
 function RootCauseSelector({ selectedCause, onSelectCause }: RootCauseSelectorProps) {

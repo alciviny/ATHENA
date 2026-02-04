@@ -72,7 +72,7 @@ class ReviewSchema(BaseModel):
 
 @router.post("/review/{node_id}")
 async def record_review(
-    node_id: UUID,
+    node_id: str,
     review_data: ReviewSchema,
     use_case: RecordReviewUseCase = Depends(get_record_review_use_case),
 ):

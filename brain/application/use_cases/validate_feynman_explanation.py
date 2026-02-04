@@ -4,8 +4,8 @@ from uuid import UUID
 from typing import Dict, Any
 
 from brain.application.ports.ai_service import AIService
-from brain.application.ports.repositories import KnowledgeNodeRepository, PerformanceRepository
-from brain.domain.entities.performance_event import PerformanceEvent, PerformanceType
+from brain.application.ports.repositories import KnowledgeRepository, PerformanceRepository
+from brain.domain.entities.performance_event import PerformanceEvent, PerformanceEventType
 from brain.domain.services.intelligence_engine import IntelligenceEngine
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class ValidateFeynmanExplanation:
 
     def __init__(
         self,
-        node_repository: KnowledgeNodeRepository,
+        node_repository: KnowledgeRepository,
         performance_repository: PerformanceRepository,
         ai_service: AIService,
     ):
@@ -98,7 +98,7 @@ class ValidateFeynmanExplanation:
         performance_event = PerformanceEvent(
             student_id=student_id,
             node_id=node_id,
-            performance_type=PerformanceType.FEYNMAN_VALIDATION,
+            performance_type=PerformanceEventType.FEYNMAN_VALIDATION,
             is_success=is_success,
             metadata={
                 "explanation": explanation,
