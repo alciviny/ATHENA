@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { StudyPlan, StudyItem, StudySession, RoiReport } from '../types/athena';
+import type { StudyPlan, StudyItem, StudySession, RoiReport, FeynmanResult } from '../types/athena';
 
 interface BackendSession {
   topic: string;
@@ -139,16 +139,80 @@ export const studyService = {
     };
   },
 
-  submitReview: async (nodeId: string, grade: number, responseTime: number, rootCause?: string) => {
-    const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-    const success = grade > 1; // Sucesso se for HARD, GOOD, ou EASY
+  startSimulator: async (numQuestions?: number, timeLimit?: number, stressLevel?: number): Promise<StudyPlan> => {
+    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const response = await api.post(`/api/study/start-simulator/${studentId}`, {
+      num_questions: numQuestions,
+      time_limit_seconds: timeLimit,
+      stress_level: stressLevel,
+    });
+    
+    // Reutiliza a lógica de adaptação do generatePlan
+    const backendData = response.data;
+    
+    const sessions: StudySession[] = [];
+    if (backendData.sessions && Array.isArray(backendData.sessions)) {
+      backendData.sessions.forEach((session: BackendSession, sIdx: number) => {
+        const items: StudyItem[] = [];
+        if (session.items && Array.isArray(session.items)) {
+          session.items.forEach((item: BackendItem) => {
+            items.push({
+              id: item.id,
+              type: 'flashcard',
+              content: item.content,
+              front: item.content?.front,
+              options: item.content?.options,
+              correct_index: item.content?.correct_index,
+              explanation: item.content?.back,
+              stability: 1.0,
+              current_retention: 0.9,
+              topic_roi: item.topic_roi,
+            });
+          });
+        }
 
-    return api.post(`/api/study/review/${nodeId}`, {
+        sessions.push({
+          id: `${backendData.id || 'plan'}-s${sIdx}`,
+          topic: session.topic,
+          duration_minutes: items.length * 2 || 0,
+          items,
+          focus_level: backendData.focus_level || 'SIMULATOR'
+        });
+      });
+    }
+
+    return {
+      id: backendData.id,
+      student_id: backendData.student_id,
+      created_at: backendData.created_at,
+      estimated_duration_minutes: backendData.estimated_duration_minutes || 15,
+      focus_level: backendData.focus_level || 'Simulator Mode',
+      sessions,
+      flashcards: [], // Simulador foca em sessões
+    };
+  },
+
+  submitReview: async (nodeId: string, success: boolean, responseTime: number, explicitGrade: number | null, rootCause?: string) => {
+    const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'; // TODO: Mudar para dinâmico
+
+    const response = await api.post(`/api/study/review/${nodeId}`, {
       student_id,
       success,
-      grade,
+      grade: explicitGrade,
       response_time_seconds: responseTime,
       root_cause: rootCause,
     });
+    return response.data;
+  },
+
+  validateFeynman: async (nodeId: string, explanation: string): Promise<FeynmanResult> => {
+    const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'; // TODO: Mudar para dinâmico
+    const response = await api.post('/api/feynman/validate', {
+      student_id,
+      node_id: nodeId,
+      explanation,
+    });
+    return response.data;
   },
 };
+      

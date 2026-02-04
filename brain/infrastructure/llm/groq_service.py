@@ -44,6 +44,14 @@ class FlashcardOutput(BaseModel):
     explicacao: str
 
 
+class FeynmanOutput(BaseModel):
+    score: float = Field(..., ge=0.0, le=1.0)
+    is_accurate: bool
+    missing_concepts: List[str]
+    feedback: str
+
+
+
 # ============================================================
 # SERVIÇO
 # ============================================================
@@ -245,3 +253,99 @@ RETORNE EXCLUSIVAMENTE JSON VÁLIDO no formato:
                 exc_info=e,
             )
             raise RuntimeError("Embedding indisponível")
+
+    # ========================================================
+    # FEYNMAN VALIDATION
+    # ========================================================
+
+    async def validate_feynman_explanation(
+        self,
+        node_content: str,
+        explanation: str,
+        subject: str,
+        difficulty: int
+    ) -> Dict[str, Any]:
+        """
+        Valida a explicação de um aluno sobre um conceito usando a técnica de Feynman.
+        """
+        system_prompt = f"""
+Você é um "Mentor Socrático", um especialista em {subject}. Sua tarefa é avaliar a explicação de um aluno sobre um conceito, baseando-se na técnica de Feynman.
+
+O conceito a ser explicado é:
+---
+{node_content}
+---
+
+A dificuldade do conceito é avaliada em {difficulty}/10.
+
+A explicação do aluno foi:
+---
+{explanation}
+---
+
+Sua análise deve ser rigorosa e pedagógica. Você deve retornar um objeto JSON com a seguinte estrutura:
+{{
+  "score": float (de 0.0 a 1.0, onde 1.0 é uma explicação perfeita e 0.0 é totalmente incorreta),
+  "is_accurate": boolean (true se a explicação for fundamentalmente correta, mesmo que incompleta),
+  "missing_concepts": ["lista de conceitos importantes que o aluno não mencionou"],
+  "feedback": "Um feedback construtivo e encorajador, apontando os acertos e as lacunas no raciocínio do aluno. Use a maiêutica socrática: faça perguntas que o guiem à resposta correta em vez de simplesmente dar a solução."
+}}
+
+Analise a explicação do aluno e forneça o JSON de avaliação. O score deve refletir a profundidade, precisão e clareza da explicação.
+"""
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                logger.info(
+                    f"[FEYNMAN] Validating | Subject='{subject}' | "
+                    f"Difficulty={difficulty} | Attempt={attempt}"
+                )
+
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "Você responde APENAS com JSON válido. "
+                                "Sem markdown, sem comentários, sem texto extra."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": system_prompt,
+                        }
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.3,
+                )
+
+                content = response.choices[0].message.content
+                
+                validated_output = FeynmanOutput.model_validate_json(content)
+
+                logger.info(
+                    "[FEYNMAN] Sucesso | "
+                    f"Score={validated_output.score}"
+                )
+
+                return validated_output.model_dump()
+
+            except ValidationError as ve:
+                logger.error(
+                    "[FEYNMAN-VALIDATION] JSON inválido retornado pelo modelo",
+                    exc_info=ve,
+                )
+                logger.debug(f"[FEYNMAN-RAW] {content}")
+
+            except Exception as e:
+                logger.error(
+                    "[FEYNMAN-ERROR] Falha ao validar explicação",
+                    exc_info=e,
+                )
+
+            await asyncio.sleep(0.5)
+
+        logger.critical(
+            f"[FEYNMAN] Falha definitiva após {self.max_retries} tentativas"
+        )
+        raise RuntimeError("Não foi possível validar a explicação no momento.")

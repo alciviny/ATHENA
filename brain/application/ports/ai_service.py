@@ -26,7 +26,34 @@ class AIService(ABC):
         """Gera flashcard."""
         pass
 
-    @abstractmethod
-    async def generate_embedding(self, text: str) -> List[float]:
-        """Gera representação vetorial."""
-        pass
+        @abstractmethod
+
+        async def generate_embedding(self, text: str) -> List[float]:
+
+            """Gera representação vetorial."""
+
+            pass
+
+    
+
+        @abstractmethod
+
+        async def validate_feynman_explanation(
+
+            self,
+
+            node_content: str,
+
+            explanation: str,
+
+            subject: str,
+
+            difficulty: int
+
+        ) -> Dict[str, Any]:
+
+            """Valida a explicação do aluno usando a técnica de Feynman."""
+
+            pass
+
+    

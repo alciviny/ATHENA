@@ -87,12 +87,34 @@ export interface KnowledgeNode {
 
   
 
+
+
   export interface RoiReport {
+
+
 
     nodes: KnowledgeNode[];
 
+
+
     links: { source: string; target: string; }[];
+
+
 
   }
 
-  
+
+
+  export interface FeynmanResult {
+
+    score: number;
+
+    is_accurate: boolean;
+
+    missing_concepts: string[];
+
+    feedback: string;
+
+  }
+
+    
