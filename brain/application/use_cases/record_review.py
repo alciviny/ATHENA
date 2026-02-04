@@ -46,6 +46,33 @@ class RecordReviewUseCase:
     ):
         print(f"--- Processing Review for Node {node_id} ---")
 
+        if node_id.startswith("fc-"):
+            grade = self._infer_grade(success, response_time_seconds)
+            event = PerformanceEvent(
+                id=uuid4(),
+                student_id=student_id,
+                event_type=PerformanceEventType.QUIZ,
+                occurred_at=datetime.now(timezone.utc),
+                topic=f"Flashcard: {node_id}",
+                metric=PerformanceMetric.ACCURACY,
+                value=1.0 if grade != ReviewGrade.AGAIN else 0.0,
+                baseline=0.0,
+                root_cause=root_cause.value if root_cause else None,
+                event_metadata={
+                    "response_time": response_time_seconds,
+                    "grade_value": grade.value,
+                    "grade_source": "inferred",
+                    "difficulty_snapshot": 0.5,
+                },
+            )
+            await self.performance_repo.save(event)
+            return {
+                "status": "recorded",
+                "node": node_id,
+                "grade_used": grade.name,
+                "trigger_feynman": False,
+            }
+
         # 1. Buscar o nó
         node_uuid = UUID(node_id) if isinstance(node_id, str) else node_id
         node = await self.node_repo.get_by_id(node_uuid)
