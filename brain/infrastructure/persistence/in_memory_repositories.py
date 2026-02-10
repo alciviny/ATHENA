@@ -81,7 +81,7 @@ class InMemoryKnowledgeRepository(KnowledgeRepository):
         
     async def get_node_by_title(self, title: str) -> Optional[KnowledgeNode]:
         for node in self.nodes:
-            if node.title == title:
+            if node.name == title:  # Usa name ao invés de title
                 return node
         return None
         

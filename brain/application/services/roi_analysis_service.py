@@ -1,5 +1,7 @@
 from typing import List, Dict, Optional
 from uuid import UUID
+from datetime import datetime, timezone
+import math
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.value_objects.roi_status import ROIStatus
 from brain.application.ports.repositories import KnowledgeRepository, PerformanceRepository
@@ -36,12 +38,30 @@ class ROIAnalysisService:
     async def get_knowledge_graph(self, student_id: UUID) -> Dict:
         """
         Gera uma representação completa do grafo de conhecimento com scores de ROI.
+        Calcula proficiência real baseada na curva de esquecimento R = e^(-t/S).
         """
         all_nodes = await self.knowledge_repo.get_full_graph()
         
-        # TODO: Implementar uma forma real de buscar a proficiência do aluno por nó.
-        # Por enquanto, usaremos um valor fixo para demonstração.
-        student_proficiency_map = {node.id: 0.5 for node in all_nodes}
+        # Calcular proficiência real para cada nó usando a fórmula de retenção
+        now = datetime.now(timezone.utc)
+        student_proficiency_map = {}
+        for node in all_nodes:
+            if node.last_reviewed_at and node.stability > 0:
+                # Curva de esquecimento: R = e^(-t/S)
+                last_review = node.last_reviewed_at
+                if last_review.tzinfo is None:
+                    last_review = last_review.replace(tzinfo=timezone.utc)
+                elapsed_days = max(0, (now - last_review).total_seconds() / 86400.0)
+                stability = max(0.1, node.stability)
+                retention = math.exp(-elapsed_days / stability)
+                student_proficiency_map[node.id] = retention
+            elif node.reps > 0:
+                # Já revisou mas sem dados de timing — usar fator baseado em reps/lapses
+                success_ratio = max(0.1, 1.0 - (node.lapses / max(1, node.reps)))
+                student_proficiency_map[node.id] = success_ratio * 0.7
+            else:
+                # Nunca revisou
+                student_proficiency_map[node.id] = 0.0
         
         graph_nodes = []
         for node in all_nodes:

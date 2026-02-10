@@ -19,7 +19,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
   const [graphData, setGraphData] = useState<RoiReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
-  const fgRef = useRef<any>();
+  const fgRef = useRef<any>(null);
 
   useEffect(() => {
     studyService.getRoiReport()
@@ -142,7 +142,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
         linkWidth={1}
         backgroundColor="rgba(0, 0, 0, 0)"
         cooldownTicks={100}
-        velocityDecay={0.3} // Adjusted as requested
+        d3VelocityDecay={0.3} // Adjusted as requested
         onEngineStop={() => fgRef.current?.zoomToFit(400, 100)}
       />
       {tooltip && (

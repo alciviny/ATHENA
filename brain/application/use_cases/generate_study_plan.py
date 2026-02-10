@@ -108,13 +108,15 @@ class GenerateStudyPlanUseCase:
             # 4. Calcular node_scores (ROI * (1 - retention))
             logger.info("[PLAN-FLOW] Calculando scores de priorização...")
             performance_map = {
-                str(event.node_id): event.score / 100.0 
+                event.topic: event.value / 100.0 
                 for event in recent_events
             }
             
             node_scores: Dict[str, float] = {}
             for node in all_nodes:
-                proficiency = performance_map.get(str(node.id), 0.0)
+                # Tentar matching por topic string ou por node.id
+                proficiency = performance_map.get(node.name, 
+                                                  performance_map.get(str(node.id), 0.0))
                 roi_score = self.roi_service.calculate_priority_score(node, proficiency)
                 retention = node_retention_map.get(str(node.id), 0.0)
                 
@@ -205,13 +207,13 @@ class GenerateStudyPlanUseCase:
             logger.info("[PLAN-FLOW] Plano de estudo salvo no banco.")
 
             # 10. Formatação do DTO de resposta
-            return self._format_dto(study_plan, student.id, generated_cards, focus_level_after_rules)
+            return self._format_dto(study_plan, student.id, generated_cards, focus_level_after_rules, node_retention_map)
 
         except Exception as e:
             logger.critical(f"[PLAN-FLOW] 💀 CRITICAL ERROR: {e}", exc_info=True)
             raise e
 
-    def _format_dto(self, study_plan, student_id, generated_cards, focus_level) -> StudyPlanDTO:
+    def _format_dto(self, study_plan, student_id, generated_cards, focus_level, node_retention_map: Dict[str, float]) -> StudyPlanDTO:
         logger.info("[PLAN-FLOW] Formatando resposta (DTO)...")
         sessions_dto = []
         
@@ -228,7 +230,36 @@ class GenerateStudyPlanUseCase:
         ]
 
         estimated_duration = getattr(study_plan, 'estimated_duration_minutes', 0)
-        logger.info("[PLAN-FLOW] 🎉 Plano gerado e entregue com sucesso!")
+        
+        # Formatar flashcards para o padrão esperado pelo frontend
+        formatted_flashcards = []
+        logger.info(f"[PLAN-FLOW] Formatando {len(generated_cards)} flashcards...")
+        for idx, card in enumerate(generated_cards):
+            logger.debug(f"[PLAN-FLOW] Card original {idx}: {card}")
+            
+            # Buscar stability e retention do node correspondente
+            node = study_plan.knowledge_nodes[idx] if idx < len(study_plan.knowledge_nodes) else None
+            node_id_str = str(node.id) if node else None
+            
+            stability = getattr(node, 'stability', 1.0) if node else 1.0
+            current_retention = node_retention_map.get(node_id_str, 0.5) if node_id_str else 0.5
+            
+            formatted_card = {
+                "id": node_id_str or f"flashcard_{idx}",
+                "type": "flashcard",
+                "content": {
+                    "front": card.get("pergunta", card.get("front", f"Card {idx}")),
+                    "options": card.get("opcoes", card.get("options", [])),
+                    "correct_index": card.get("correta_index", card.get("correct_index", 0)),
+                    "back": card.get("explicacao", card.get("back", card.get("explanation", "")))
+                },
+                "stability": stability,
+                "current_retention": current_retention
+            }
+            logger.debug(f"[PLAN-FLOW] Card formatado {idx}: stability={stability}, retention={current_retention}")
+            formatted_flashcards.append(formatted_card)
+        
+        logger.info(f"[PLAN-FLOW] 🎉 Plano gerado e entregue com sucesso! {len(formatted_flashcards)} flashcards incluídos.")
 
         return StudyPlanOutputDTO(
             id=study_plan.id,
@@ -237,5 +268,5 @@ class GenerateStudyPlanUseCase:
             created_at=getattr(study_plan, 'created_at', datetime.now(timezone.utc)),
             estimated_duration_minutes=estimated_duration,
             focus_level=focus_level_str,
-            flashcards=generated_cards,
+            flashcards=formatted_flashcards,
         )

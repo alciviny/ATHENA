@@ -46,14 +46,21 @@ class RecordReviewUseCase:
     ):
         print(f"--- Processing Review for Node {node_id} ---")
 
-        if node_id.startswith("fc-"):
+        # Detectar se é um ID temporário de flashcard (fc-X ou flashcard_X)
+        is_temp_id = node_id.startswith("fc-") or node_id.startswith("flashcard_")
+        
+        if is_temp_id:
+            print(f"[RECORD_REVIEW] Temporary flashcard ID detected: {node_id}")
+            # Para IDs temporários, usar o próprio ID como topic
+            topic_name = node_id
+            
             grade = self._infer_grade(success, response_time_seconds)
             event = PerformanceEvent(
                 id=uuid4(),
                 student_id=student_id,
                 event_type=PerformanceEventType.QUIZ,
                 occurred_at=datetime.now(timezone.utc),
-                topic=f"Flashcard: {node_id}",
+                topic=topic_name,
                 metric=PerformanceMetric.ACCURACY,
                 value=1.0 if grade != ReviewGrade.AGAIN else 0.0,
                 baseline=0.0,
@@ -66,9 +73,10 @@ class RecordReviewUseCase:
                 },
             )
             await self.performance_repo.save(event)
+            print(f"[RECORD_REVIEW] Review recorded for temporary flashcard: {topic_name}")
             return {
                 "status": "recorded",
-                "node": node_id,
+                "node": topic_name,
                 "grade_used": grade.name,
                 "trigger_feynman": False,
             }

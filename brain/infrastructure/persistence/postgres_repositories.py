@@ -133,6 +133,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 id=model.id,
                 name=model.name,
                 subject=model.subject,
+                content=model.description or "",  # Mapeia description para content
                 dependency_ids=[dep.id for dep in model.dependencies],
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
@@ -154,6 +155,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 id=model.id,
                 name=model.name,
                 subject=model.subject,
+                content=model.description or "",  # Mapeia description para content
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
                 stability=model.stability,
@@ -174,6 +176,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 id=model.id,
                 name=model.name,
                 subject=model.subject,
+                content=model.description or "",  # Mapeia description para content
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
                 stability=model.stability,
@@ -193,6 +196,7 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 id=model.id,
                 name=model.name,
                 subject=model.subject,
+                content=model.description or "",  # Mapeia description para content
                 weight_in_exam=model.weight_in_exam,
                 weight=model.weight,
                 stability=model.stability,
@@ -208,12 +212,14 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         result = await self.db.execute(select(KnowledgeNodeModel).filter(KnowledgeNodeModel.id == node.id))
         model = result.scalars().first()
         if model:
+            model.description = node.content  # Mapeia content para description
             model.stability = node.stability
             model.difficulty = node.difficulty
             model.reps = node.reps
             model.lapses = node.lapses
-            model.last_reviewed_at = node.last_reviewed_at
-            model.next_review_at = node.next_review_at
+            # Remover timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE
+            model.last_reviewed_at = node.last_reviewed_at.replace(tzinfo=None) if node.last_reviewed_at else None
+            model.next_review_at = node.next_review_at.replace(tzinfo=None) if node.next_review_at else None
             model.weight = node.weight
             await self.db.flush()
 
@@ -222,25 +228,29 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
         result = await self.db.execute(select(KnowledgeNodeModel).filter(KnowledgeNodeModel.id == node.id))
         model = result.scalars().first()
         if model:
+            model.description = node.content  # Mapeia content para description
             model.stability = node.stability
             model.difficulty = node.difficulty
             model.reps = node.reps
             model.lapses = node.lapses
-            model.last_reviewed_at = node.last_reviewed_at
-            model.next_review_at = node.next_review_at
+            # Remover timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE
+            model.last_reviewed_at = node.last_reviewed_at.replace(tzinfo=None) if node.last_reviewed_at else None
+            model.next_review_at = node.next_review_at.replace(tzinfo=None) if node.next_review_at else None
             model.weight = node.weight
         else:
             model = KnowledgeNodeModel(
                 id=node.id,
                 name=node.name,
                 subject=node.subject,
+                description=node.content,  # Mapeia content para description
                 weight_in_exam=node.weight_in_exam,
                 stability=node.stability,
                 difficulty=node.difficulty,
                 reps=node.reps,
                 lapses=node.lapses,
-                last_reviewed_at=node.last_reviewed_at,
-                next_review_at=node.next_review_at,
+                # Remover timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE
+                last_reviewed_at=node.last_reviewed_at.replace(tzinfo=None) if node.last_reviewed_at else None,
+                next_review_at=node.next_review_at.replace(tzinfo=None) if node.next_review_at else None,
             )
             self.db.add(model)
         await self.db.flush()
@@ -307,22 +317,28 @@ class PostgresErrorEventRepository(ports.ErrorEventRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    def _model_to_entity(self, model: ErrorEventModel) -> ErrorEvent:
+        """Converte modelo ORM em entidade de domínio com defaults seguros."""
+        from brain.domain.entities.error_event import ErrorType
+        from datetime import datetime, timezone
+
+        return ErrorEvent(
+            id=model.id,
+            student_id=model.student_id,
+            knowledge_node_id=model.knowledge_node_id or model.student_id,  # fallback
+            error_type=ErrorType(model.error_type) if model.error_type else ErrorType.CONTEUDO,
+            occurred_at=model.occurred_at or datetime.now(timezone.utc),
+            severity=model.severity if model.severity is not None else 0.5,
+        )
+
     async def get_by_student_id(self, student_id: UUID) -> List[ErrorEvent]:
-        result = await self.db.execute(select(ErrorEventModel).filter(ErrorEventModel.student_id == student_id))
-        error_models = result.scalars().all()
-        return [
-            ErrorEvent(
-                id=model.id,
-                student_id=model.student_id,
-                knowledge_node_id=model.knowledge_node_id,
-                error_type=model.error_type,
-                occurred_at=model.occurred_at,
-                severity=model.severity,
-            )
-            for model in error_models
-        ]
+        result = await self.db.execute(
+            select(ErrorEventModel).filter(ErrorEventModel.student_id == student_id)
+        )
+        return [self._model_to_entity(m) for m in result.scalars().all()]
 
     async def get_by_student_and_subject(self, student_id: UUID, subject: str) -> List[ErrorEvent]:
+        # JOIN com KnowledgeNodeModel para filtrar por subject do nó
         result = await self.db.execute(
             select(ErrorEventModel)
             .join(KnowledgeNodeModel, ErrorEventModel.knowledge_node_id == KnowledgeNodeModel.id)
@@ -331,15 +347,4 @@ class PostgresErrorEventRepository(ports.ErrorEventRepository):
                 KnowledgeNodeModel.subject == subject,
             )
         )
-        error_models = result.scalars().all()
-        return [
-            ErrorEvent(
-                id=model.id,
-                student_id=model.student_id,
-                knowledge_node_id=model.knowledge_node_id,
-                error_type=model.error_type,
-                occurred_at=model.occurred_at,
-                severity=model.severity,
-            )
-            for model in error_models
-        ]
+        return [self._model_to_entity(m) for m in result.scalars().all()]

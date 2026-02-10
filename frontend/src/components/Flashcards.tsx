@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { StudyItem } from '../types/athena';
 
 export function Flashcards({ cards }: { cards: StudyItem[] }) {
@@ -6,13 +6,22 @@ export function Flashcards({ cards }: { cards: StudyItem[] }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
 
-  if (!cards || cards.length === 0) return null;
+  console.log('Flashcards - cards recebidos:', cards); // Debug
+
+  if (!cards || cards.length === 0) {
+    console.log('Flashcards - Nenhum card disponível');
+    return null;
+  }
 
   const card = cards[current];
-  const front = card.content?.front ?? card.front ?? '—';
+  console.log('Flashcards - card atual:', card); // Debug
+
+  const front = card.content?.front ?? card.front ?? 'Pergunta não disponível';
   const options = card.content?.options ?? card.options ?? [];
-  const explanation = card.content?.back ?? card.explanation ?? '';
+  const explanation = card.content?.back ?? card.explanation ?? 'Explicação não disponível';
   const correct = card.content?.correct_index ?? card.correct_index ?? 0;
+
+  console.log('Flashcards - dados extraídos:', { front, options, explanation, correct }); // Debug
 
   const choose = (i: number) => {
     if (revealed) return; // já revelado
@@ -41,20 +50,26 @@ export function Flashcards({ cards }: { cards: StudyItem[] }) {
 
       <div className="py-4">
         <div className="mb-4 text-white font-medium">{front}</div>
-        <div className="grid grid-cols-1 gap-2">
-          {options.map((opt, i) => {
-            const isSelected = selected === i;
-            const isCorrect = revealed && i === correct;
-            const isWrong = revealed && isSelected && i !== correct;
-            const base = 'p-3 rounded';
-            const cls = isCorrect ? `${base} bg-emerald-700 text-white` : isWrong ? `${base} bg-red-700 text-white` : `${base} bg-slate-800 text-slate-200`;
-            return (
-              <button key={i} disabled={revealed} onClick={() => choose(i)} className={cls}>
-                {opt}
-              </button>
-            );
-          })}
-        </div>
+        {options.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2">
+            {options.map((opt, i) => {
+              const isSelected = selected === i;
+              const isCorrect = revealed && i === correct;
+              const isWrong = revealed && isSelected && i !== correct;
+              const base = 'p-3 rounded';
+              const cls = isCorrect ? `${base} bg-emerald-700 text-white` : isWrong ? `${base} bg-red-700 text-white` : `${base} bg-slate-800 text-slate-200`;
+              return (
+                <button key={i} disabled={revealed} onClick={() => choose(i)} className={cls}>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-slate-400 text-sm italic">
+            Nenhuma opção disponível para este flashcard.
+          </div>
+        )}
       </div>
 
       {revealed && (

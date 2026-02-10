@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { StudyPlan, StudyItem } from '../types/athena';
 
 interface ExamSimulatorProps {
@@ -10,7 +10,7 @@ export function ExamSimulator({ plan, onComplete }: ExamSimulatorProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<'RECALL' | 'FEEDBACK'>('RECALL');
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(plan.time_limit_seconds ?? 0);
+  const [timeLeft, setTimeLeft] = useState<number>(plan.estimated_duration_minutes ? plan.estimated_duration_minutes * 60 : 0);
   const [finalized, setFinalized] = useState(false);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function ExamSimulator({ plan, onComplete }: ExamSimulatorProps) {
   const correctIndex = currentNode ? (currentNode.correct_index ?? currentNode.content?.correct_index ?? 0) : 0;
   const isCorrect = selectedOption === correctIndex;
 
-  const isExam = (plan.plan_type ?? 'learning') === 'exam';
+  const isExam = true; // Assumindo que é sempre um exame no simulador
 
   return (
     <div className="w-full max-w-2xl mx-auto p-8">

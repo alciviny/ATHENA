@@ -107,5 +107,7 @@ class ErrorEventModel(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id = Column(UUID(as_uuid=True), nullable=False)
-    subject = Column(String, nullable=True)
-    details = Column(String, nullable=True)
+    knowledge_node_id = Column(UUID(as_uuid=True), ForeignKey("knowledge_nodes.id"), nullable=True)
+    error_type = Column(String, nullable=True, default="conteudo")
+    occurred_at = Column(DateTime(timezone=True), nullable=True)
+    severity = Column(Float, nullable=True, default=0.5)

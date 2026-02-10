@@ -4,41 +4,57 @@ from unittest.mock import MagicMock
 import uuid
 
 from brain.application.services.roi_analysis_service import ROIAnalysisService
-from brain.domain.services.intelligence_engine import IntelligenceEngine
-from brain.domain.value_objects.roi_status import ROIStatus
+from brain.domain.entities.knowledge_node import KnowledgeNode
 
 
 def test_classify_high_roi_as_veio_de_ouro():
     """
-    Garante que um score de ROI de 0.10 seja classificado como VEIO_DE_OURO.
+    Garante que um nó com baixa proficiência e alta importância receba score alto de ROI.
     """
-    # Arrange
-    mock_engine = MagicMock(spec=IntelligenceEngine)
-    subject_id = uuid.uuid4()
-    
-    # Configura o motor para retornar um score de ROI alto para uma matéria
-    mock_engine.calculate_roi_per_subject.return_value = {
-        "Direito Constitucional": 0.10
-    }
+    mock_knowledge_repo = MagicMock()
+    mock_performance_repo = MagicMock()
 
-    # Cria um mock para o estudante com a matéria correspondente
-    mock_student = MagicMock()
-    mock_subject = MagicMock()
-    mock_subject.id = subject_id
-    mock_subject.name = "Direito Constitucional"
-    mock_student.subjects = [mock_subject]
+    service = ROIAnalysisService(
+        knowledge_repo=mock_knowledge_repo,
+        performance_repo=mock_performance_repo,
+    )
 
-    # Instancia o serviço com o motor mockado
-    service = ROIAnalysisService(engine=mock_engine)
+    # Nó fácil (difficulty=1), importante (weight_in_exam=0.9), proficiência baixa
+    node = KnowledgeNode(
+        id=uuid.uuid4(),
+        name="Direito Constitucional",
+        subject="Direito",
+        difficulty=1.0,
+        weight_in_exam=0.9,
+    )
 
-    # Act
-    # O histórico pode ser vazio, pois o cálculo do motor já está mockado
-    report = service.analyze(student=mock_student, history=[])
+    # ROI alto: gap_opportunity=0.9*0.9=0.81, roi=0.81/1.1≈0.736
+    roi_score = service.calculate_priority_score(node, current_proficiency=0.1)
+    assert roi_score > 0.7, f"ROI esperado > 0.7, obteve {roi_score}"
 
-    # Assert
-    assert len(report) == 1
-    assert report[0]["subject_id"] == str(subject_id)
-    assert report[0]["roi_score"] == 0.10
-    assert report[0]["status"] == ROIStatus.VEIO_DE_OURO
-    assert "Prioridade máxima" in report[0]["recommendation"]
+    label = service.get_roi_label(roi_score)
+    assert label == "ALTO IMPACTO: Ganho Rápido"
+
+
+def test_dominated_node_has_zero_roi():
+    """
+    Garante que um nó com proficiência >= 0.9 tenha ROI zero.
+    """
+    mock_knowledge_repo = MagicMock()
+    mock_performance_repo = MagicMock()
+
+    service = ROIAnalysisService(
+        knowledge_repo=mock_knowledge_repo,
+        performance_repo=mock_performance_repo,
+    )
+
+    node = KnowledgeNode(
+        id=uuid.uuid4(),
+        name="Tópico Dominado",
+        subject="Math",
+        difficulty=5.0,
+    )
+
+    roi_score = service.calculate_priority_score(node, current_proficiency=0.95)
+    assert roi_score == 0.0
 

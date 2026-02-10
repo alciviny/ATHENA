@@ -50,10 +50,10 @@ async def generate_embedding(text: str) -> List[float]:
     genai.configure(api_key=GEMINI_API_KEY)
     
     try:
-        # Usa o modelo novo de embedding
+        # Usa o modelo atual de embedding do Gemini
         result = await asyncio.to_thread(
             genai.embed_content,
-            model="models/text-embedding-004",
+            model="models/gemini-embedding-001",
             content=text,
             task_type="retrieval_document"
         )

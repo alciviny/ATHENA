@@ -1,11 +1,13 @@
 
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from brain.application.ports.ai_service import AIService
 from brain.application.ports.repositories import KnowledgeRepository, PerformanceRepository
-from brain.domain.entities.performance_event import PerformanceEvent, PerformanceEventType
+from brain.domain.entities.performance_event import PerformanceEvent, PerformanceEventType, PerformanceMetric
+from brain.domain.entities.knowledge_node import ReviewGrade  # Import do ReviewGrade
 from brain.domain.services.intelligence_engine import IntelligenceEngine
 
 logger = logging.getLogger(__name__)
@@ -80,27 +82,54 @@ class ValidateFeynmanExplanation:
         # 3. Processar o resultado e atualizar o estado do nó
         is_success = validation_result.get("score", 0.0) >= 0.8
 
-        if is_success:
-            self.intelligence_engine.apply_success(node)
-            logger.info(
-                f"[FEYNMAN_UC] Sucesso registrado no nó | NodeId={node_id}"
-            )
+        # Determinar o ReviewGrade baseado no score da validação
+        score = validation_result.get("score", 0.0)
+        if score >= 0.9:
+            grade = ReviewGrade.EASY  
+        elif score >= 0.8:
+            grade = ReviewGrade.GOOD
+        elif score >= 0.6:
+            grade = ReviewGrade.HARD
         else:
-            # Em caso de falha, registramos o erro de base para o motor de inteligência
-            self.intelligence_engine.apply_failure(node, is_base_error=True)
-            logger.warning(
-                f"[FEYNMAN_UC] Falha registrada no nó (erro de base) | NodeId={node_id}"
+            grade = ReviewGrade.AGAIN
+
+        # Usar o método correto do intelligence engine
+        try:
+            updated_node = self.intelligence_engine.update_node_state(
+                node=node,
+                grade=grade,
+                history=[],  # Para agora, lista vazia - poderia ser implementado buscar histórico real
+                root_cause=None
             )
+            
+            if is_success:
+                logger.info(
+                    f"[FEYNMAN_UC] Sucesso registrado no nó | NodeId={node_id} | Grade={grade.name}"
+                )
+            else:
+                logger.warning(
+                    f"[FEYNMAN_UC] Falha registrada no nó | NodeId={node_id} | Grade={grade.name}"
+                )
+        except Exception as e:
+            logger.error(f"[FEYNMAN_UC] Erro ao atualizar estado do nó: {e}")
+            # Continue sem falhar completamente
+            updated_node = node  # Usa o nó original se houver erro
         
-        await self.node_repository.update(node)
+        await self.node_repository.update(updated_node)
 
         # 4. Registrar o evento de performance
         performance_event = PerformanceEvent(
+            id=uuid4(),  # Gera um novo UUID para o evento
             student_id=student_id,
-            node_id=node_id,
-            performance_type=PerformanceEventType.FEYNMAN_VALIDATION,
-            is_success=is_success,
-            metadata={
+            event_type=PerformanceEventType.FEYNMAN_VALIDATION,
+            occurred_at=datetime.now(timezone.utc),
+            topic=node.subject or "Unknown",  # Usa subject como topic
+            metric=PerformanceMetric.SCORE,  # Métrica adequada para validação Feynman
+            value=validation_result.get("score", 0.0),
+            baseline=0.8,  # Baseline de sucesso para Feynman
+            root_cause=None,
+            event_metadata={
+                "node_id": str(node_id),  # Move node_id para metadata
                 "explanation": explanation,
                 "feedback": validation_result.get("feedback"),
                 "score": validation_result.get("score"),
@@ -108,7 +137,7 @@ class ValidateFeynmanExplanation:
             },
         )
 
-        await self.performance_repository.create(performance_event)
+        await self.performance_repository.save(performance_event)
         logger.info(
             f"[FEYNMAN_UC] Evento de performance registrado | EventId={performance_event.id}"
         )

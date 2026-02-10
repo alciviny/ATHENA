@@ -89,7 +89,7 @@ def get_in_memory_error_event_repo() -> InMemoryErrorEventRepository:
 # Conditional Repository Providers
 # =========================================================
 
-async def get_student_repository(
+def get_student_repository(
     db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings),
 ) -> ports.StudentRepository:
@@ -97,7 +97,7 @@ async def get_student_repository(
         return get_in_memory_student_repo()
     return PostgresStudentRepository(db)
 
-async def get_study_plan_repository(
+def get_study_plan_repository(
     db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings),
 ) -> ports.StudyPlanRepository:
@@ -105,7 +105,7 @@ async def get_study_plan_repository(
         return get_in_memory_study_plan_repo()
     return PostgresStudyPlanRepository(db)
 
-async def get_knowledge_repository(
+def get_knowledge_repository(
     db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings),
 ) -> ports.KnowledgeRepository:
@@ -113,7 +113,7 @@ async def get_knowledge_repository(
         return get_in_memory_knowledge_repo()
     return PostgresKnowledgeRepository(db)
 
-async def get_performance_repository(
+def get_performance_repository(
     db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings),
 ) -> ports.PerformanceRepository:
@@ -121,7 +121,7 @@ async def get_performance_repository(
         return get_in_memory_performance_repo()
     return PostgresPerformanceRepository(db)
 
-async def get_cognitive_profile_repository(
+def get_cognitive_profile_repository(
     db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings),
 ) -> ports.CognitiveProfileRepository:
@@ -129,7 +129,7 @@ async def get_cognitive_profile_repository(
         return get_in_memory_cognitive_profile_repo()
     return PostgresCognitiveProfileRepository(db)
 
-async def get_error_event_repository(
+def get_error_event_repository(
     db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings),
 ) -> ports.ErrorEventRepository:
@@ -159,13 +159,9 @@ def get_ai_service(settings: Settings = Depends(get_settings)) -> AIService:
     3. MockAIService -> Desenvolvimento/Testes
     """
     
-    # OPÇÃO 1: Groq (Híbrido: Groq p/ Texto + Gemini p/ Vetor)
+    # OPÇÃO 1: Groq (lê as configurações do settings automaticamente)
     if settings.GROQ_API_KEY:
-        return GroqService(
-            groq_api_key=settings.GROQ_API_KEY,
-            gemini_api_key=settings.GEMINI_API_KEY, # Necessário para embeddings
-            model=settings.GROQ_MODEL
-        )
+        return GroqService()
     
     # OPÇÃO 2: Gemini Puro (Texto + Vetor)
     # Útil se não tiver chave da Groq configurada
@@ -190,13 +186,13 @@ def get_semantic_propagator(
         vector_repository=vector_repo,
     )
 
-async def get_roi_analysis_service(
+def get_roi_analysis_service(
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
 ) -> ROIAnalysisService:
     return ROIAnalysisService(knowledge_repo=knowledge_repo, performance_repo=performance_repo)
 
-async def get_memory_analysis_service(
+def get_memory_analysis_service(
     engine: IntelligenceEngine = Depends(get_intelligence_engine),
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
 ) -> MemoryAnalysisService:
@@ -207,7 +203,7 @@ async def get_memory_analysis_service(
 # Use Cases
 # =========================================================
 
-async def get_generate_study_plan_use_case(
+def get_generate_study_plan_use_case(
     student_repo: ports.StudentRepository = Depends(get_student_repository),
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
@@ -229,7 +225,7 @@ async def get_generate_study_plan_use_case(
         settings=settings,
     )
 
-async def get_analyze_student_performance_use_case(
+def get_analyze_student_performance_use_case(
     error_event_repository: ports.ErrorEventRepository = Depends(get_error_event_repository),
     ai_service: AIService = Depends(get_ai_service),
 ) -> AnalyzeStudentPerformance:
@@ -238,7 +234,7 @@ async def get_analyze_student_performance_use_case(
         ai_service=ai_service,
     )
 
-async def get_validate_feynman_explanation_use_case(
+def get_validate_feynman_explanation_use_case(
     node_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
     ai_service: AIService = Depends(get_ai_service),
@@ -249,7 +245,7 @@ async def get_validate_feynman_explanation_use_case(
         ai_service=ai_service,
     )
 
-async def get_record_review_use_case(
+def get_record_review_use_case(
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     intelligence_engine: IntelligenceEngine = Depends(get_intelligence_engine),
@@ -262,15 +258,14 @@ async def get_record_review_use_case(
         semantic_propagator=semantic_propagator,
     )
 
-
-async def get_start_exam_simulator_use_case(
+def get_start_exam_simulator_use_case(
     student_repo: ports.StudentRepository = Depends(get_student_repository),
     knowledge_repo: ports.KnowledgeRepository = Depends(get_knowledge_repository),
     study_plan_repo: ports.StudyPlanRepository = Depends(get_study_plan_repository),
     cognitive_profile_repo: ports.CognitiveProfileRepository = Depends(get_cognitive_profile_repository),
     vector_repo: ports.KnowledgeVectorRepository = Depends(get_knowledge_vector_repository),
     performance_repo: ports.PerformanceRepository = Depends(get_performance_repository),
-ai_service: AIService = Depends(get_ai_service),
+    ai_service: AIService = Depends(get_ai_service),
 ) -> StartExamSimulatorUseCase:
     return StartExamSimulatorUseCase(
         student_repo=student_repo,

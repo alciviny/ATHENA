@@ -45,25 +45,40 @@ class MemoryAnalysisService:
             topics.setdefault(ev.topic, []).append(ev)
 
         for topic, events in topics.items():
-            # O engine é um mock síncrono nos testes, portanto chamamos diretamente
+            # Tentar encontrar o nó correspondente para cálculo real de retenção
+            node = None
+            display_name = topic
+            
+            if self.knowledge_repo:
+                try:
+                    if topic.startswith("Flashcard: "):
+                        node_id_str = topic.replace("Flashcard: ", "").strip()
+                        try:
+                            from uuid import UUID
+                            node_uuid = UUID(node_id_str)
+                            node = await self.knowledge_repo.get_by_id(node_uuid)
+                        except (ValueError, AttributeError):
+                            node = await self.knowledge_repo.get_node_by_name(topic)
+                    else:
+                        node = await self.knowledge_repo.get_node_by_name(topic)
+                    
+                    if node:
+                        display_name = node.name
+                except Exception as e:
+                    print(f"Erro ao buscar nó para topic '{topic}': {e}")
+                    node = None
+
+            # Usar o engine com o nó real se disponível
             try:
-                analysis = self.engine.analyze_memory_state(events)
+                analysis = self.engine.analyze_memory_state(events, node=node)
             except TypeError:
-                # Alguns mocks definem side_effects que aceitam diferentes assinaturas
-                analysis = self.engine.analyze_memory_state()
+                # Fallback para assinatura antiga sem parâmetro node (compatibilidade com mocks)
+                analysis = self.engine.analyze_memory_state(events)
             except Exception:
                 analysis = {}
 
-            # Tenta recuperar o nó correspondente (se o repositório foi injetado)
-            node = None
-            if self.knowledge_repo:
-                try:
-                    node = await self.knowledge_repo.get_node_by_name(topic)
-                except Exception:
-                    node = None
-
             report = {
-                "subject_name": topic,
+                "subject_name": display_name,  # Agora usa o nome do nó se disponível
                 "current_retention": analysis.get("current_retention"),
                 "stability_days": analysis.get("stability_days"),
                 "needs_review": analysis.get("needs_review", False),

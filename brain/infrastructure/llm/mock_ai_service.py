@@ -95,3 +95,43 @@ class MockAIService(AIService):
 
         logger.info("Mock AI Service: Análise concluída com sucesso.")
         return analysis
+
+    async def validate_feynman_explanation(
+        self,
+        node_content: Dict[str, Any],
+        explanation: str,
+        subject: str,
+        difficulty: float,
+    ) -> Dict[str, Any]:
+        """
+        Simula a validação de uma explicação Feynman.
+        """
+        logger.info(f"Mock AI Service: Validando explicação Feynman para '{subject}'.")
+
+        if self.delay_seconds > 0:
+            await asyncio.sleep(self.delay_seconds)
+
+        # Retorna uma validação determinística para testes
+        score = 0.8 if len(explanation) > 50 else 0.5
+        
+        return {
+            "score": score,
+            "feedback": f"Boa explicação sobre {subject}. Considere adicionar mais detalhes.",
+            "missing_concepts": [] if score > 0.7 else ["conceito1", "conceito2"]
+        }
+
+    async def generate_scenario(self, node, stress_level: float) -> Dict[str, Any]:
+        """
+        Simula a geração de um cenário prático.
+        """
+        node_name = getattr(node, 'name', 'Unknown Topic')
+        logger.info(f"Mock AI Service: Gerando cenário para '{node_name}'.")
+
+        if self.delay_seconds > 0:
+            await asyncio.sleep(self.delay_seconds)
+
+        return {
+            "scenario_text": f"Cenário de teste para {node_name}: Imagine que você precisa aplicar este conceito em uma situação real.",
+            "expected_outcome": f"O resultado esperado é que você compreenda como {node_name} funciona na prática.",
+            "difficulty_adjusted": min(10.0, stress_level * 10.0)
+        }

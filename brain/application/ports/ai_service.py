@@ -1,19 +1,41 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
-from brain.domain.entities.error_event import ErrorEvent
+from typing import Dict, Any, List
+
+# Se precisares importar KnowledgeNode para tipagem, usa TYPE_CHECKING para evitar ciclo
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from brain.domain.entities.knowledge_node import KnowledgeNode
 
 class AIService(ABC):
     """
-    Porta para serviços de IA Generativa.
+    Porta (Interface) para serviços de Inteligência Artificial.
     """
 
     @abstractmethod
-    async def analyze_student_errors(
+    async def validate_feynman_explanation(
         self,
-        errors: List[ErrorEvent],
+        node_content: Dict[str, Any],
+        explanation: str,
         subject: str,
-    ) -> str:
-        """Analisa padrões de erro."""
+        difficulty: float,
+    ) -> Dict[str, Any]:
+        """
+        Avalia a explicação de um conceito feita pelo aluno (Técnica Feynman).
+        """
+        pass
+
+    @abstractmethod
+    async def generate_scenario(
+        self, 
+        node: "KnowledgeNode", 
+        stress_level: float
+    ) -> Dict[str, Any]:
+        """
+        Gera um cenário prático (Prediction-Based Learning) baseado no nó.
+        
+        Returns:
+            Dict com chaves: 'scenario_text', 'expected_outcome', 'difficulty_adjusted'.
+        """
         pass
 
     @abstractmethod
@@ -21,39 +43,36 @@ class AIService(ABC):
         self,
         topic: str,
         difficulty: int,
-        context: str = "",
+        context: str = ""
     ) -> Dict[str, Any]:
-        """Gera flashcard."""
+        """
+        Gera um flashcard de múltipla escolha para um tópico.
+        
+        Returns:
+            Dict com chaves: 'pergunta', 'opcoes', 'correta_index', 'explicacao'.
+        """
         pass
 
-        @abstractmethod
+    @abstractmethod
+    async def analyze_student_errors(
+        self,
+        errors: list,
+        subject: str,
+    ) -> str:
+        """
+        Analisa os erros do aluno em uma matéria e retorna um texto de análise.
+        """
+        pass
 
-        async def generate_embedding(self, text: str) -> List[float]:
-
-            """Gera representação vetorial."""
-
-            pass
-
-    
-
-        @abstractmethod
-
-        async def validate_feynman_explanation(
-
-            self,
-
-            node_content: str,
-
-            explanation: str,
-
-            subject: str,
-
-            difficulty: int
-
-        ) -> Dict[str, Any]:
-
-            """Valida a explicação do aluno usando a técnica de Feynman."""
-
-            pass
-
-    
+    @abstractmethod
+    async def generate_embedding(
+        self,
+        text: str
+    ) -> List[float]:
+        """
+        Gera um vetor de embedding para o texto fornecido.
+        
+        Returns:
+            Lista de floats representando o embedding do texto.
+        """
+        pass

@@ -9,6 +9,10 @@ interface BackendSession {
 interface BackendItem {
   id: string;
   topic_roi: string;
+  stability?: number;
+  current_retention?: number;
+  difficulty?: number;
+  estimated_time_minutes?: number;
   content: {
     front: string;
     back: string;
@@ -18,14 +22,32 @@ interface BackendItem {
 }
 
 interface BackendFlashcard {
-  pergunta: string;
-  explicacao: string;
+  id?: string;
+  type?: string;
+  stability?: number;
+  current_retention?: number;
+  difficulty?: number;
+  estimated_time_minutes?: number;
+  topic_roi?: string;
+  // Formato aninhado que vem do backend
+  content?: {
+    front: string;
+    back: string;
+    options: string[];
+    correct_index: number;
+  };
+  // Mantém compatibilidade com formato antigo
+  pergunta?: string;
+  explicacao?: string;
   opcoes?: string[];
   correta_index?: number;
 }
 
 const api = axios.create({
   timeout: 120000, // 2 minutos
+  headers: {
+    'Content-Type': 'application/json; charset=utf-8',
+  },
 });
 
 export const studyService = {
@@ -85,9 +107,12 @@ export const studyService = {
               options: item.content?.options,
               correct_index: item.content?.correct_index,
               explanation: item.content?.back,
-              stability: 1.0,
-              current_retention: 0.9,
+              stability: item.stability ?? 1.0,
+              current_retention: item.current_retention ?? 0.9,
               topic_roi: item.topic_roi, // Mapeia o rótulo estratégico do backend
+              // CORRIGINDO: Adicionando propriedades que estavam faltando
+              difficulty: item.difficulty ?? 0.5,
+              estimated_time_minutes: item.estimated_time_minutes ?? 2,
             });
           });
         }
@@ -104,28 +129,62 @@ export const studyService = {
 
     // 2. Converte flashcards (se existirem) para o formato interno
     const flashcards = (backendData.flashcards && Array.isArray(backendData.flashcards))
-      ? backendData.flashcards.map((c: BackendFlashcard, idx: number) => ({
-          id: `fc-${idx}-${c.pergunta?.slice(0,10)}`,
-          type: 'flashcard',
-          content: {
-            front: c.pergunta,
-            back: c.explicacao,
-            options: c.opcoes || [],
-            correct_index: c.correta_index ?? 0,
+      ? backendData.flashcards.map((c: BackendFlashcard, idx: number) => {
+          console.log(`studyService - Processando flashcard ${idx}:`, c); // Debug
+          // Verifica se já vem com o formato aninhado (novo backend)
+          if (c.content) {
+            console.log(`studyService - Flashcard ${idx} já tem content aninhado`); // Debug
+            return {
+              id: c.id || `fc-${idx}`,
+              type: c.type || 'flashcard',
+              content: c.content,
+              stability: c.stability ?? 1.0,
+              current_retention: c.current_retention ?? 0.5,
+              // CORRIGINDO: Adicionando propriedades que estavam faltando
+              difficulty: c.difficulty ?? 0.5,
+              estimated_time_minutes: c.estimated_time_minutes ?? 2,
+              topic_roi: c.topic_roi || 'MANUTENÇÃO',
+            };
           }
-        }))
+          // Fallback para formato antigo
+          console.log(`studyService - Flashcard ${idx} usando formato antigo`); // Debug
+          return {
+            id: `fc-${idx}-${c.pergunta?.slice(0,10)}`,
+            type: 'flashcard',
+            content: {
+              front: c.pergunta || '',
+              back: c.explicacao || '',
+              options: c.opcoes || [],
+              correct_index: c.correta_index ?? 0,
+            },
+            stability: c.stability ?? 1.0,
+            current_retention: c.current_retention ?? 0.5,
+            // CORRIGINDO: Adicionando propriedades que estavam faltando
+            difficulty: 0.5,
+            estimated_time_minutes: 2,
+            topic_roi: 'MANUTENÇÃO',
+          };
+        })
       : [];
+    
+    console.log('studyService - Flashcards mapeados:', flashcards); // Debug
 
-    // 3. Se não houver sessões, mas houver flashcards, cria uma sessão "Flashcards"
+    // 3. Se não houver sessões, mas houver flashcards, cria uma sessão para cada flashcard
     if ((sessions.length === 0 || !sessions) && flashcards.length > 0) {
-      sessions.push({
-        id: `${backendData.id || 'plan'}-flashcards`,
-        topic: 'Flashcards',
-        duration_minutes: flashcards.length * 2,
-        items: flashcards,
-        focus_level: backendData.focus_level || 'GERAL'
+      console.log('studyService - Criando sessões a partir dos flashcards'); // Debug
+      flashcards.forEach((flashcard: any, idx: number) => {
+        const topic = flashcard.content?.front || `Questão ${idx + 1}`;
+        sessions.push({
+          id: `${backendData.id || 'plan'}-fc-${idx}`,
+          topic: topic.length > 60 ? topic.substring(0, 57) + '...' : topic, // Limita o tamanho do tópico
+          duration_minutes: flashcard.estimated_time_minutes || 2,
+          items: [flashcard],
+          focus_level: backendData.focus_level || 'GERAL'
+        });
       });
     }
+    
+    console.log('studyService - Sessions finais:', sessions); // Debug
 
     // 4. Retorna o objeto no formato que o React espera (incluindo `sessions` e `flashcards`)
     return {
@@ -164,9 +223,12 @@ export const studyService = {
               options: item.content?.options,
               correct_index: item.content?.correct_index,
               explanation: item.content?.back,
-              stability: 1.0,
-              current_retention: 0.9,
+              stability: item.stability ?? 1.0,
+              current_retention: item.current_retention ?? 0.9,
               topic_roi: item.topic_roi,
+              // CORRIGINDO: Adicionando propriedades que estavam faltando no simulator também
+              difficulty: item.difficulty ?? 0.5,
+              estimated_time_minutes: item.estimated_time_minutes ?? 2,
             });
           });
         }
@@ -207,10 +269,24 @@ export const studyService = {
 
   validateFeynman: async (nodeId: string, explanation: string): Promise<FeynmanResult> => {
     const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'; // TODO: Mudar para dinâmico
-    const response = await api.post('/api/feynman/validate', {
+    const response = await api.post('/api/study/feynman/validate', {
       student_id,
       node_id: nodeId,
       explanation,
+    });
+    return response.data;
+  },
+
+  getMemoryStatus: async () => {
+    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const response = await api.get(`/api/students/${studentId}/memory-status`);
+    return response.data;
+  },
+
+  getPerformanceAnalysis: async (subject: string) => {
+    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+    const response = await api.get(`/api/performance/analysis/${studentId}`, {
+      params: { subject }
     });
     return response.data;
   },

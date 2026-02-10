@@ -61,4 +61,6 @@ async def analyze_performance(
             "analysis": analysis,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail="An unexpected error occurred during analysis.")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro na análise: {type(e).__name__}: {str(e)}")
