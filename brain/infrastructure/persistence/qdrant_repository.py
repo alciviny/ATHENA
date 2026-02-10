@@ -46,7 +46,7 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
             # Usa thread para não bloquear o loop principal
             result = await asyncio.to_thread(
                 genai.embed_content,
-                model="models/text-embedding-004",
+                model="models/gemini-embedding-001",
                 content=text,
                 task_type="retrieval_query"
             )

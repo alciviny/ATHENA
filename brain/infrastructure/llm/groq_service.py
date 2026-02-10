@@ -1,351 +1,232 @@
-import os
 import json
-import asyncio
 import logging
-from typing import List, Dict, Any, Optional
-
-try:
-    from groq import AsyncGroq
-except Exception:
-    # Ambiente de testes pode não ter a dependência 'groq'. Fornecemos
-    # um stub leve para permitir a importação do módulo. Se o serviço
-    # for instanciado sem a biblioteca real, ele lançará RuntimeError.
-    class AsyncGroq:  # stub
-        def __init__(self, *args, **kwargs):
-            raise RuntimeError("Dependência 'groq' não disponível in runtime")
-import google.generativeai as genai
-from pydantic import BaseModel, Field, ValidationError
+from typing import Dict, Any, List
+from groq import AsyncGroq
 
 from brain.application.ports.ai_service import AIService
-from brain.domain.entities.error_event import ErrorEvent
+from brain.domain.entities.knowledge_node import KnowledgeNode
+from brain.config.settings import settings
+from brain.domain.exceptions import AIServiceError, AIInvalidResponseError
+from brain.infrastructure.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from brain.infrastructure.logging import get_logger
 
-# ============================================================
-# LOGGING CONFIG (Docker-friendly)
-# ============================================================
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
-
-logger = logging.getLogger("groq_service")
-
-
-# ============================================================
-# MODELOS
-# ============================================================
-
-class FlashcardOutput(BaseModel):
-    pergunta: str = Field(..., description="Enunciado da questão")
-    opcoes: List[str] = Field(..., min_items=4, max_items=4)
-    correta_index: int = Field(..., ge=0, le=3)
-    explicacao: str
-
-
-class FeynmanOutput(BaseModel):
-    score: float = Field(..., ge=0.0, le=1.0)
-    is_accurate: bool
-    missing_concepts: List[str]
-    feedback: str
-
-
-
-# ============================================================
-# SERVIÇO
-# ============================================================
+logger = get_logger(__name__)
 
 class GroqService(AIService):
     """
-    Serviço Híbrido:
-    - Geração de texto: Groq (LLaMA 3.x)
-    - Embeddings: Google Gemini
+    Implementação do serviço de IA usando a API da Groq.
+    Focado em alta velocidade e inferência "Universal".
     """
 
-    def __init__(
-        self,
-        groq_api_key: str,
-        gemini_api_key: Optional[str],
-        model: str = "llama-3.3-70b-versatile",
-        max_retries: int = 2,
-    ):
-        self.client = AsyncGroq(api_key=groq_api_key)
-        self.model = model
-        self.max_retries = max_retries
-
-        if gemini_api_key:
-            genai.configure(api_key=gemini_api_key)
-
-        self.embedding_model = "models/text-embedding-004"
-
+    def __init__(self):
+        api_key = settings.GROQ_API_KEY
+        if not api_key:
+            logger.warning("GROQ_API_KEY não configurada")
+        
+        self.client = AsyncGroq(api_key=api_key)
+        # Modelo atualizado - llama3-70b-8192 foi descontinuado
+        self.model = "llama-3.3-70b-versatile"
+        
+        # Circuit breaker para proteção
+        self.circuit_breaker = CircuitBreaker(
+            name="groq",
+            config=CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout=60
+            )
+        )
+        
         logger.info(
-            "[INIT] Serviço Groq híbrido iniciado | "
-            f"Model={self.model} | Embeddings=Gemini | Retries={self.max_retries}"
-        )
-
-    # ========================================================
-    # FLASHCARD
-    # ========================================================
-
-    async def generate_flashcard(
-        self,
-        topic: str,
-        difficulty: int,
-        context: str = "",
-    ) -> Dict[str, Any]:
-
-        temperature = 0.2 if difficulty <= 2 else 0.5
-
-        prompt = f"""
-Você é um professor especialista.
-
-Crie UM flashcard sobre:
-Tema: "{topic}"
-Dificuldade: {difficulty}/5
-
-Contexto:
-{context[:800]}
-
-RETORNE EXCLUSIVAMENTE JSON VÁLIDO no formato:
-
-{{
-  "pergunta": "...",
-  "opcoes": ["A", "B", "C", "D"],
-  "correta_index": 0,
-  "explicacao": "..."
-}}
-"""
-
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                logger.info(
-                    f"[FLASHCARD] Gerando | Topic='{topic}' | "
-                    f"Difficulty={difficulty} | Attempt={attempt}"
-                )
-
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "Você responde APENAS com JSON válido. "
-                                "Sem markdown, sem comentários, sem texto extra."
-                            ),
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=temperature,
-                )
-
-                content = response.choices[0].message.content
-
-                flashcard = FlashcardOutput.model_validate_json(content)
-
-                logger.info(
-                    "[FLASHCARD] Sucesso | "
-                    f"Pergunta='{flashcard.pergunta[:60]}...'"
-                )
-
-                return flashcard.model_dump()
-
-            except ValidationError as ve:
-                logger.error(
-                    "[FLASHCARD-VALIDATION] JSON inválido retornado pelo modelo",
-                    exc_info=ve,
-                )
-                logger.debug(f"[FLASHCARD-RAW] {content}")
-
-            except Exception as e:
-                logger.error(
-                    "[FLASHCARD-ERROR] Falha ao gerar flashcard",
-                    exc_info=e,
-                )
-
-            await asyncio.sleep(0.5)
-
-        logger.critical(
-            f"[FLASHCARD] Falha definitiva após {self.max_retries} tentativas"
-        )
-        raise RuntimeError("Não foi possível gerar flashcard válido")
-
-    # ========================================================
-    # ANÁLISE DE ERROS DO ALUNO
-    # ========================================================
-
-    async def analyze_student_errors(
-        self,
-        errors: List[ErrorEvent],
-        subject: str,
-    ) -> str:
-
-        if not errors:
-            logger.warning("[ANALYSIS] Sem erros fornecidos")
-            return "Sem dados suficientes para análise."
-
-        errors_payload = [e.model_dump() for e in errors]
-
-        prompt = (
-            f"Analise os erros recentes do aluno na disciplina {subject}.\n\n"
-            f"Erros:\n{json.dumps(errors_payload, ensure_ascii=False)}\n\n"
-            "Sugira estratégias pedagógicas claras e objetivas."
-        )
-
-        try:
-            logger.info(
-                f"[ANALYSIS] Iniciando análise | Subject={subject} | "
-                f"Errors={len(errors)}"
-            )
-
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-            )
-
-            result = response.choices[0].message.content
-
-            logger.info("[ANALYSIS] Análise concluída com sucesso")
-
-            return result
-
-        except Exception as e:
-            logger.error(
-                "[ANALYSIS-ERROR] Falha na análise de erros",
-                exc_info=e,
-            )
-            return "Não foi possível analisar os erros no momento."
-
-    # ========================================================
-    # EMBEDDINGS
-    # ========================================================
-
-    async def generate_embedding(self, text: str) -> List[float]:
-        if not text.strip():
-            logger.warning("[EMBEDDING] Texto vazio recebido")
-            return []
-
-        try:
-            logger.info(
-                f"[EMBEDDING] Gerando embedding | Size={len(text)} chars"
-            )
-
-            result = await asyncio.to_thread(
-                genai.embed_content,
-                model=self.embedding_model,
-                content=text,
-                task_type="retrieval_query",
-            )
-
-            embedding = result["embedding"]
-
-            logger.info(
-                f"[EMBEDDING] Sucesso | Dim={len(embedding)}"
-            )
-
-            return embedding
-
-        except Exception as e:
-            logger.critical(
-                "[EMBEDDING-ERROR] Falha ao gerar embedding",
-                exc_info=e,
-            )
-            raise RuntimeError("Embedding indisponível")
-
-    # ========================================================
-    # FEYNMAN VALIDATION
-    # ========================================================
+            "GroqService inicializado",
+            model=self.model,
+            circuit_breaker="enabled"
+        ) 
 
     async def validate_feynman_explanation(
         self,
-        node_content: str,
+        node_content: Dict[str, Any],
         explanation: str,
         subject: str,
-        difficulty: int
+        difficulty: float,
     ) -> Dict[str, Any]:
         """
-        Valida a explicação de um aluno sobre um conceito usando a técnica de Feynman.
+        Valida uma explicação usando o modelo da Groq.
         """
-        system_prompt = f"""
-Você é um "Mentor Socrático", um especialista em {subject}. Sua tarefa é avaliar a explicação de um aluno sobre um conceito, baseando-se na técnica de Feynman.
-
-O conceito a ser explicado é:
----
-{node_content}
----
-
-A dificuldade do conceito é avaliada em {difficulty}/10.
-
-A explicação do aluno foi:
----
-{explanation}
----
-
-Sua análise deve ser rigorosa e pedagógica. Você deve retornar um objeto JSON com a seguinte estrutura:
-{{
-  "score": float (de 0.0 a 1.0, onde 1.0 é uma explicação perfeita e 0.0 é totalmente incorreta),
-  "is_accurate": boolean (true se a explicação for fundamentalmente correta, mesmo que incompleta),
-  "missing_concepts": ["lista de conceitos importantes que o aluno não mencionou"],
-  "feedback": "Um feedback construtivo e encorajador, apontando os acertos e as lacunas no raciocínio do aluno. Use a maiêutica socrática: faça perguntas que o guiem à resposta correta em vez de simplesmente dar a solução."
-}}
-
-Analise a explicação do aluno e forneça o JSON de avaliação. O score deve refletir a profundidade, precisão e clareza da explicação.
-"""
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                logger.info(
-                    f"[FEYNMAN] Validating | Subject='{subject}' | "
-                    f"Difficulty={difficulty} | Attempt={attempt}"
-                )
-
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "Você responde APENAS com JSON válido. "
-                                "Sem markdown, sem comentários, sem texto extra."
-                            ),
-                        },
-                        {
-                            "role": "user",
-                            "content": system_prompt,
-                        }
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.3,
-                )
-
-                content = response.choices[0].message.content
-                
-                validated_output = FeynmanOutput.model_validate_json(content)
-
-                logger.info(
-                    "[FEYNMAN] Sucesso | "
-                    f"Score={validated_output.score}"
-                )
-
-                return validated_output.model_dump()
-
-            except ValidationError as ve:
-                logger.error(
-                    "[FEYNMAN-VALIDATION] JSON inválido retornado pelo modelo",
-                    exc_info=ve,
-                )
-                logger.debug(f"[FEYNMAN-RAW] {content}")
-
-            except Exception as e:
-                logger.error(
-                    "[FEYNMAN-ERROR] Falha ao validar explicação",
-                    exc_info=e,
-                )
-
-            await asyncio.sleep(0.5)
-
-        logger.critical(
-            f"[FEYNMAN] Falha definitiva após {self.max_retries} tentativas"
+        system_prompt = (
+            f"Você é um especialista em {subject}. "
+            "Sua tarefa é avaliar a explicação de um estudante sobre um conceito técnico.\n"
+            "Retorne APENAS um JSON com o seguinte formato:\n"
+            "{\n"
+            '  "score": <float entre 0.0 e 1.0>,\n'
+            '  "feedback": "<texto curto e direto sobre a qualidade da explicação>",\n'
+            '  "missing_concepts": ["<conceito1>", "<conceito2>"]\n'
+            "}"
         )
-        raise RuntimeError("Não foi possível validar a explicação no momento.")
+
+        user_prompt = (
+            f"Conceito Original: {node_content}\n"
+            f"Explicação do Estudante: {explanation}\n"
+        )
+
+        return await self._call_groq_json(system_prompt, user_prompt)
+
+    async def generate_scenario(self, node: KnowledgeNode, stress_level: float) -> Dict[str, Any]:
+        """
+        Gera um cenário prático universal usando o prompt "Camaleão".
+        """
+        subject = node.subject if node.subject else "General Knowledge"
+        
+        system_prompt = (
+            f"You are an expert Mentor in '{subject}'. "
+            "Your goal is to test the student's intuition and prediction skills.\n"
+            "Return ONLY a JSON object with this format:\n"
+            "{\n"
+            '  "scenario_text": "<The problem description/scenario>",\n'
+            '  "expected_outcome": "<The logical consequence or correct prediction>",\n'
+            '  "difficulty_adjusted": <float 1.0-10.0>\n'
+            "}"
+        )
+
+        user_prompt = (
+            f"Topic: {node.name}\n"
+            f"Context Data: {node.content}\n"
+            f"Stress Level: {stress_level} (0.0=Textbook, 1.0=Chaos/Ambiguous)\n\n"
+            "Task: Create a practical, high-stakes scenario where this concept is the key.\n"
+            "- If Technical (Code/Math): Provide a broken snippet or formula.\n"
+            "- If Abstract (Philosophy/Law): Present a moral dilemma or case study.\n"
+            "- If Visual (Trading/Geo): Describe a market setup or map scene.\n"
+            "Ask the student to PREDICT the outcome."
+        )
+
+        return await self._call_groq_json(system_prompt, user_prompt)
+
+    async def generate_flashcard(self, topic: str, difficulty: int, context: str = "") -> Dict[str, Any]:
+        """
+        Gera um flashcard de múltipla escolha usando o modelo da Groq.
+        """
+        system_prompt = (
+            "You are an expert educator creating multiple-choice questions.\n"
+            "Return ONLY a JSON object with this exact format:\n"
+            "{\n"
+            '  "pergunta": "<The question text>",\n'
+            '  "opcoes": ["<option1>", "<option2>", "<option3>", "<option4>"],\n'
+            '  "correta_index": <index of correct answer 0-3>,\n'
+            '  "explicacao": "<Brief explanation of the correct answer>"\n'
+            "}"
+        )
+
+        user_prompt = (
+            f"Topic: {topic}\n"
+            f"Difficulty: {difficulty}/5\n"
+            f"Context: {context[:500]}...\n\n"
+            "Task: Create a well-crafted multiple-choice question that tests understanding of this topic.\n"
+            "- Make the question clear and specific\n"
+            "- Provide 4 plausible options\n"
+            "- Only one option should be correct\n"
+            "- Include a brief explanation of why the correct answer is right"
+        )
+
+        return await self._call_groq_json(system_prompt, user_prompt)
+
+    async def analyze_student_errors(self, errors: list, subject: str) -> str:
+        """
+        Analisa os erros do aluno usando o modelo da Groq.
+        """
+        if not errors:
+            return f"Nenhum erro encontrado para análise na matéria '{subject}'."
+
+        errors_summary = []
+        for e in errors:
+            error_type = getattr(e, 'error_type', 'desconhecido')
+            severity = getattr(e, 'severity', 0.0)
+            errors_summary.append(f"- Tipo: {error_type}, Severidade: {severity:.1f}")
+
+        errors_text = "\n".join(errors_summary[:20])  # Limita a 20 erros
+
+        system_prompt = (
+            f"Você é um tutor especialista em {subject}. "
+            "Analise os erros do aluno e forneça uma análise concisa com:\n"
+            "1. Padrões identificados nos erros\n"
+            "2. Pontos fracos principais\n"
+            "3. Sugestões práticas de estudo\n"
+            "Responda em português, de forma direta e objetiva."
+        )
+
+        user_prompt = (
+            f"Matéria: {subject}\n"
+            f"Total de erros: {len(errors)}\n"
+            f"Detalhamento:\n{errors_text}"
+        )
+
+        try:
+            result = await self._call_groq_json(system_prompt, user_prompt)
+            # Se veio JSON, extraímos o texto
+            if isinstance(result, dict):
+                return result.get("analysis", result.get("feedback", json.dumps(result, ensure_ascii=False)))
+            return str(result)
+        except Exception as e:
+            logger.error("Erro ao analisar erros do estudante", error=str(e))
+            return f"Não foi possível analisar os erros em '{subject}' neste momento."
+
+    async def generate_embedding(self, text: str) -> List[float]:
+        """
+        Groq não oferece API de embeddings nativa.
+        Retorna lista vazia - o código chamador deve lidar com isso.
+        """
+        logger.debug(
+            "GroqService não suporta embeddings nativamente",
+            text_length=len(text)
+        )
+        return []
+
+    async def _call_groq_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
+        """Helper para chamadas JSON seguras com circuit breaker."""
+        
+        async def _make_call():
+            chat_completion = await self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=self.model,
+                temperature=0.4,
+                response_format={"type": "json_object"},
+            )
+
+            response_content = chat_completion.choices[0].message.content
+            if not response_content:
+                raise AIInvalidResponseError(
+                    "Resposta vazia da Groq API",
+                    provider="groq"
+                )
+
+            return json.loads(response_content)
+        
+        try:
+            return await self.circuit_breaker.call(_make_call)
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Erro ao parsear JSON da resposta",
+                error=str(e),
+                provider="groq"
+            )
+            raise AIInvalidResponseError(
+                "Resposta da Groq não é um JSON válido",
+                provider="groq"
+            )
+        except Exception as e:
+            logger.error(
+                "Erro ao chamar Groq API",
+                error=str(e),
+                error_type=e.__class__.__name__
+            )
+            # Fallback genérico para não quebrar o fluxo
+            return {
+                "scenario_text": "Error generating AI scenario. Review the concept conventionally.",
+                "expected_outcome": "N/A",
+                "difficulty_adjusted": 5.0,
+                "score": 0.0,
+                "feedback": "Service Error",
+                "missing_concepts": []
+            }

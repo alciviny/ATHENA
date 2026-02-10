@@ -22,8 +22,8 @@ router = APIRouter()
 
 
 class FeynmanValidationSchema(BaseModel):
-    student_id: UUID
-    node_id: UUID
+    student_id: str  # Mudado para str para flexibilidade
+    node_id: str     # Mudado para str para flexibilidade  
     explanation: str
 
 
@@ -92,8 +92,10 @@ async def record_review(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        import traceback
         print(f"Error processing review: {e}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
 @router.post("/feynman/validate")
@@ -105,13 +107,20 @@ async def validate_feynman_explanation(
     Validates a student's explanation for a given knowledge node using the Feynman technique.
     """
     try:
+        # Converte strings para UUID
+        student_uuid = UUID(validation_data.student_id)
+        node_uuid = UUID(validation_data.node_id)
+        
         result = await use_case.execute(
-            student_id=validation_data.student_id,
-            node_id=validation_data.node_id,
+            student_id=student_uuid,
+            node_id=node_uuid,
             explanation=validation_data.explanation,
         )
         return result
     except ValueError as e:
+        # Captura tanto erros de UUID inválido quanto erros do use case
+        if "badly formed hexadecimal UUID string" in str(e):
+            raise HTTPException(status_code=400, detail="IDs devem ser UUIDs válidos")
         raise HTTPException(status_code=404, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))

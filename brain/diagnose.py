@@ -21,15 +21,15 @@ try:
     found_embed = False
     for m in genai.list_models():
         print(f"✅ Modelo disponível: {m.name}")
-        if "gemini-1.5-flash" in m.name:
+        if "gemini-1.5-flash" in m.name or "gemini-2.5-flash" in m.name:
             found_flash = True
-        if "text-embedding-004" in m.name:
+        if "gemini-embedding-001" in m.name:
             found_embed = True
             
     if not found_flash:
-        print("\n❌ ALERTA: 'gemini-1.5-flash' NÃO apareceu na lista. Sua conta não tem acesso a ele!")
+        print("\n❌ ALERTA: Nenhum modelo Gemini Flash encontrado!")
     if not found_embed:
-        print("\n❌ ALERTA: 'text-embedding-004' NÃO apareceu na lista.")
+        print("\n❌ ALERTA: 'gemini-embedding-001' NÃO apareceu na lista.")
 
 except Exception as e:
     print(f"\n💀 ERRO FATAL AO LISTAR MODELOS: {e}")

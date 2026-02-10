@@ -57,7 +57,7 @@ async def test_get_student_memory_status(setup_data):
     service = MemoryAnalysisService(engine, knowledge_repo)
     
     # Configure mock return values
-    def analyze_memory_side_effect(subject_history):
+    def analyze_memory_side_effect(subject_history, node=None):
         topic = subject_history[0].topic
         if topic == "Math":
             return { "current_retention": 0.92, "stability_days": 15, "needs_review": False }

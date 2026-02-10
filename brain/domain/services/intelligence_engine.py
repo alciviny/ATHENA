@@ -209,19 +209,31 @@ class IntelligenceEngine:
             return 0
         return max(0, (now - node.last_reviewed_at).days)
 
-    def analyze_memory_state(self, subject_history: List[PerformanceEvent]) -> dict:
+    def analyze_memory_state(self, subject_history: List[PerformanceEvent], node: KnowledgeNode = None) -> dict:
         """
-        # TODO: Esta é uma implementação de placeholder para a análise de memória.
-        # A lógica atual é supersimplificada e deriva o estado apenas do último evento.
-        # Uma implementação final deve:
-        # 1. Receber ou buscar o `KnowledgeNode` atual para o tópico.
-        # 2. Usar o método `_retrievability` desta classe para calcular a real probabilidade
-        #    de retenção com base na estabilidade (S) e no tempo decorrido (t).
-        # 3. Retornar a `stability` real do nó em `stability_days`.
+        Analisa o estado de memória para um tópico.
+        Se um KnowledgeNode for fornecido, usa a curva de esquecimento real: R = e^(-t/S).
+        Caso contrário, faz estimativa baseada no último evento de performance.
+        """
+        # Se temos o nó, usar a fórmula real de retenção
+        if node and node.last_reviewed_at and node.stability > 0:
+            now = datetime.now(timezone.utc)
+            last_review = node.last_reviewed_at
+            if last_review.tzinfo is None:
+                last_review = last_review.replace(tzinfo=timezone.utc)
+            elapsed_days = max(0, (now - last_review).total_seconds() / 86400.0)
+            
+            current_retention = self._retrievability(int(elapsed_days), node.stability)
+            stability_days = node.stability
+            needs_review = current_retention < 0.7
 
-        Placeholder Memory State Analysis.
-        Derives a simple memory state from the performance history of a single subject.
-        """
+            return {
+                "current_retention": round(current_retention, 3),
+                "stability_days": round(stability_days, 1),
+                "needs_review": needs_review,
+            }
+
+        # Fallback: estimativa pelo histórico de eventos
         if not subject_history:
             return {
                 "current_retention": 0.0,
@@ -229,22 +241,19 @@ class IntelligenceEngine:
                 "needs_review": True,
             }
 
-        # Assumes history is ordered by date, which is a reasonable expectation
         last_event = subject_history[-1]
         
         current_retention = 0.0
         if last_event.metric == PerformanceMetric.ACCURACY:
             current_retention = last_event.value
+        elif last_event.metric == PerformanceMetric.SCORE:
+            current_retention = last_event.value
         
-        # Simple rule for needing review, e.g., if last attempt was below 70%
         needs_review = current_retention < 0.7
-
-        # Cannot calculate real stability without the node itself, so we return a dummy value
-        # In a real scenario, this method would likely receive the node or fetch it.
-        stability_days = 1.0  # Dummy value
+        stability_days = 1.0 if needs_review else 3.0
 
         return {
-            "current_retention": current_retention,
+            "current_retention": round(current_retention, 3),
             "stability_days": stability_days,
             "needs_review": needs_review,
         }

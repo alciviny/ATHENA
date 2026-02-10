@@ -1,13 +1,17 @@
 import psycopg2
 import os
+from dotenv import load_dotenv
 
-# Database connection details from docker-compose
+# Carrega variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Database connection details from environment variables
 db_params = {
-    'dbname': 'athena',
-    'user': 'user',
-    'password': 'pass',
-    'host': 'localhost',  # We are running this script from the host
-    'port': '5432'
+    'dbname': os.getenv('POSTGRES_DB', 'athena'),
+    'user': os.getenv('POSTGRES_USER', 'user'),
+    'password': os.getenv('POSTGRES_PASSWORD', 'pass'),
+    'host': os.getenv('POSTGRES_HOST', 'localhost'),
+    'port': os.getenv('POSTGRES_PORT', '5432')
 }
 
 try:

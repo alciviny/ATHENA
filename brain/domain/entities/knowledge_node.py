@@ -24,6 +24,7 @@ class KnowledgeNode:
     name: str
     subject: str
     dependency_ids: List[UUID] = field(default_factory=list)
+    content: str = ""  # Conteúdo textual do conceito/nó de conhecimento
     weight_in_exam: float = 0.0
     stability: float = 0.0
     difficulty: float = 5.0

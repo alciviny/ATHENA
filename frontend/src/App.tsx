@@ -1,29 +1,49 @@
 import { useState, useMemo } from 'react';
-import { Play, Brain, Clock, TrendingUp, CheckCircle2, List, BarChart } from 'lucide-react';
+import { Play, Brain, Clock, TrendingUp, CheckCircle2, List, BarChart, Activity, Zap, LineChart } from 'lucide-react';
 import { studyService } from './services/studyService';
 import type { StudyPlan, StudyItem, StudySession, KnowledgeNode } from './types/athena';
 import { StudySession as StudySessionComponent } from './components/StudySession';
-import Flashcards from './components/Flashcards';
 import KnowledgeGraph from './components/KnowledgeGraph';
+import MemoryDashboard from './components/MemoryDashboard';
+import { PerformanceAnalysis } from './components/PerformanceAnalysis';
 
 // --- TIPO INTERNO PARA COMPATIBILIDADE VISUAL ---
 interface UIStudyItem extends StudyItem {
   ui_title: string;       // O 'topic' da sessão vira o título do card
-  ui_stability: number;   // Placeholder para estabilidade
-  ui_roi: 'VEIO_DE_OURO' | 'PANTANO' | 'NORMAL'; // Placeholder para ROI
+  ui_stability: number;   // Estabilidade do conceito
+  ui_roi: string;         // Status de ROI do backend
 }
 
-// Componente Helper para o Status do ROI
-function ROI_Badge({ status }: { status: 'VEIO_DE_OURO' | 'PANTANO' | 'NORMAL' }) {
-  if (status === 'VEIO_DE_OURO') {
+// Componente Helper para o Status do ROI (agora usa dados reais do backend)
+function ROI_Badge({ status }: { status: string | null | undefined }) {
+  if (!status) return null;
+  
+  const upperStatus = status.toUpperCase();
+  
+  if (upperStatus.includes('ALTO') || upperStatus.includes('HIGH')) {
     return (
-      <span className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)] animate-pulse">
+      <span className="flex items-center gap-1 px-2 py-1 rounded bg-red-500/10 text-red-400 text-[10px] font-bold uppercase tracking-wider border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)] animate-pulse">
         <TrendingUp className="w-3 h-3" />
-        Alto ROI
+        {status}
       </span>
     );
   }
-  return null;
+  
+  if (upperStatus.includes('ESTRAT') || upperStatus.includes('STRATEGIC')) {
+    return (
+      <span className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">
+        <TrendingUp className="w-3 h-3" />
+        {status}
+      </span>
+    );
+  }
+  
+  return (
+    <span className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-wider border border-emerald-500/20">
+      <CheckCircle2 className="w-3 h-3" />
+      {status}
+    </span>
+  );
 }
 
 // Componente do Item da Lista
@@ -69,13 +89,14 @@ function IntelligentStudyCard({ item, index }: { item: UIStudyItem; index: numbe
   );
 }
 
-type AppView = 'DASHBOARD' | 'SESSION' | 'COMPLETED';
+type AppView = 'DASHBOARD' | 'SESSION' | 'COMPLETED' | 'MEMORY' | 'ANALYSIS';
 
 function App() {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<StudyPlan | null>(null);
   const [view, setView] = useState<AppView>('DASHBOARD');
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+  const [loadingSimulator, setLoadingSimulator] = useState(false);
 
   const handleNodeClick = (node: KnowledgeNode) => {
     // For now, we'll just log the node and start the session.
@@ -103,6 +124,21 @@ function App() {
     }
   };
 
+  const handleStartSimulator = async () => {
+    setLoadingSimulator(true);
+    try {
+      const simulatorPlan = await studyService.startSimulator(20, 3600, 1.0);
+      console.log("Simulador Iniciado:", simulatorPlan);
+      setPlan(simulatorPlan);
+      setView('SESSION');
+    } catch (error) {
+      console.error("Falha ao iniciar simulador:", error);
+      alert("Erro ao iniciar simulador.");
+    } finally {
+      setLoadingSimulator(false);
+    }
+  };
+
   // --- TRATAMENTO DOS DADOS (ADAPTER) ---
   // Transforma a estrutura hierárquica (Sessions) em lista plana para o Dashboard
   const { flatItems, totalDuration, mainFocus } = useMemo(() => {
@@ -120,8 +156,8 @@ function App() {
         items.push({
           ...item,
           ui_title: session.topic, // Usa o tópico da sessão como título
-          ui_stability: 2.0,       // Default (Backend ainda não envia)
-          ui_roi: 'NORMAL'         // Default (Backend ainda não envia)
+          ui_stability: item.stability ?? 2,
+          ui_roi: item.topic_roi || 'MANUTENÇÃO'  // Usa dados reais do backend!
         } as UIStudyItem);
       });
     });
@@ -147,6 +183,34 @@ function App() {
         />
       </div>
     );
+  }
+
+  // 2. Modo Memory
+  if (view === 'MEMORY') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30">
+        <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="w-6 h-6 text-emerald-500" />
+              <span className="font-bold tracking-tight text-lg">ATHENA</span>
+            </div>
+            <button 
+              onClick={() => setView('DASHBOARD')}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-all"
+            >
+              Voltar
+            </button>
+          </div>
+        </header>
+        <MemoryDashboard />
+      </div>
+    );
+  }
+
+  // 3. Modo Analysis
+  if (view === 'ANALYSIS') {
+    return <PerformanceAnalysis onBack={() => setView('DASHBOARD')} />;
   }
 
   if (view === 'COMPLETED') {
@@ -179,6 +243,30 @@ function App() {
           <div className="flex items-center gap-2">
             <Brain className="w-6 h-6 text-emerald-500" />
             <span className="font-bold tracking-tight text-lg">ATHENA</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setView('MEMORY')}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg font-medium transition-all hover:scale-105"
+            >
+              <Activity className="w-4 h-4" />
+              Memória
+            </button>
+            <button
+              onClick={() => setView('ANALYSIS')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg font-medium transition-all hover:scale-105"
+            >
+              <LineChart className="w-4 h-4" />
+              Análise
+            </button>
+            <button
+              onClick={handleStartSimulator}
+              disabled={loadingSimulator}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-600/10 hover:bg-amber-600/20 text-amber-400 border border-amber-500/30 rounded-lg font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Zap className="w-4 h-4" />
+              {loadingSimulator ? 'Carregando...' : 'Simulado'}
+            </button>
           </div>
         </div>
       </header>
@@ -277,13 +365,6 @@ function App() {
               <Play className="w-5 h-5 fill-current" />
               Iniciar Sessão Focada
             </button>
-          </div>
-        )}
-
-        {/* Exibe flashcards APÓS o Plano Tático (se existirem) */}
-        {plan && plan.flashcards && plan.flashcards.length > 0 && !loading && (
-          <div className="max-w-3xl mx-auto px-6 py-4">
-            <Flashcards cards={plan.flashcards} />
           </div>
         )}
       </main>
