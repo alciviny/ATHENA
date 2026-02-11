@@ -1,8 +1,9 @@
 
-import React, { useEffect, useState, useRef, useCallback, memo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, memo, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { forceCollide } from 'd3-force';
 import { studyService } from '../services/studyService';
+import { useAuthenticatedAuth } from '../contexts/AuthContext';
 import type { KnowledgeNode, RoiReport } from '../types/athena';
 
 interface TooltipData {
@@ -16,13 +17,15 @@ interface KnowledgeGraphProps {
 }
 
 const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
+  const { studentId } = useAuthenticatedAuth();
   const [graphData, setGraphData] = useState<RoiReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const fgRef = useRef<any>(null);
 
   useEffect(() => {
-    studyService.getRoiReport()
+    studyService.getRoiReport(studentId)
       .then((data: RoiReport) => {
         // Ensure nodes have a default weight if not provided
         const sanitizedNodes = data.nodes.map(node => ({
@@ -38,11 +41,26 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
       });
   }, []);
 
+  // Filtrar nós baseado na matéria selecionada
+  const filteredData = useMemo(() => {
+    if (!graphData) return null;
+    
+    if (selectedSubject === 'all') {
+      return graphData;
+    }
+    
+    const filteredNodes = graphData.nodes.filter(node => 
+      node.subject?.toLowerCase() === selectedSubject.toLowerCase()
+    );
+    
+    return { ...graphData, nodes: filteredNodes };
+  }, [graphData, selectedSubject]);
+
   useEffect(() => {
     if (graphData && fgRef.current) {
       const fg = fgRef.current;
       // Adjust collision force to prevent node overlap
-      fg.d3Force('collide', forceCollide<any>(node => {
+      fg.d3Force('collide', forceCollide<KnowledgeNode>(node => {
         const kNode = node as KnowledgeNode;
         // Use weight for collision radius
         return (kNode.weight || 1) * 1.5 + 5; 
@@ -61,22 +79,15 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
     return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 1)`;
   };
   
-  const handleNodeHover = useCallback((node: any | null) => {
-    if (node && node.x && node.y) {
-      const screenCoords = fgRef.current?.graph2ScreenCoords(node.x, node.y);
-      if (screenCoords) {
-        setTooltip({
-          node: node as KnowledgeNode,
-          x: screenCoords.x,
-          y: screenCoords.y
-        });
-      }
+  const handleNodeHover = useCallback((node: KnowledgeNode | null) => {
+    if (node) {
+      setTooltip({ node, x: 0, y: 0 }); // Simplified tooltip positioning
     } else {
       setTooltip(null);
     }
   }, []);
 
-  const renderNode = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+  const renderNode = useCallback((node: object, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const kNode = node as KnowledgeNode;
     // Node size proportional to weight 
     const radius = 5 * (kNode.weight || 1);
@@ -111,7 +122,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
     ctx.shadowBlur = 0;
 
     // --- Node Label (only drawn when zoomed in) ---
-    const label = kNode.name;
+    const label = kNode.topic || kNode.name || '';
     if (globalScale > 1.2) {
       const fontSize = 12 / globalScale;
       ctx.font = `${fontSize}px Sans-Serif`;
@@ -126,33 +137,78 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
     return <div className="flex items-center justify-center h-[600px]"><span className="text-slate-400 font-mono">Loading Knowledge Graph...</span></div>;
   }
 
-  if (!graphData) {
+  if (!filteredData) {
     return <div className="flex items-center justify-center h-[600px]"><span className="text-slate-400 font-mono">Could not load graph data.</span></div>;
   }
 
+  // Extrair matérias únicas para o filtro
+  const subjects = graphData ? Array.from(new Set(graphData.nodes.map(node => node.subject).filter(Boolean))) : [];
+
   return (
-    <div className="relative w-full h-[600px] bg-slate-950 rounded-lg border border-slate-800">
-      <ForceGraph2D
-        ref={fgRef}
-        graphData={graphData}
-        nodeCanvasObject={renderNode}
-        onNodeHover={handleNodeHover}
-        onNodeClick={(node) => onNodeClick(node as KnowledgeNode)}
-        linkColor={() => 'rgba(100, 116, 139, 0.3)'}
-        linkWidth={1}
-        backgroundColor="rgba(0, 0, 0, 0)"
-        cooldownTicks={100}
-        d3VelocityDecay={0.3} // Adjusted as requested
-        onEngineStop={() => fgRef.current?.zoomToFit(400, 100)}
-      />
-      {tooltip && (
-         <div 
-         className="absolute p-3 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300 font-mono z-20 pointer-events-none transition-opacity"
-         style={{ 
-           left: tooltip.x, 
-           top: tooltip.y,
+    <div className="space-y-4">
+      {/* Controles */}
+      <div className="flex items-center justify-between bg-slate-900 p-4 rounded-lg">
+        <div className="flex items-center gap-4">
+          <div>
+            <label className="text-sm text-slate-400 mr-2" htmlFor="subject-filter">Matéria:</label>
+            <select
+              id="subject-filter"
+              title="Filtrar por matéria"
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              className="bg-slate-800 text-slate-200 px-3 py-1 rounded border border-slate-700 text-sm"
+            >
+              <option value="all">Todas</option>
+              {subjects.map(subject => (
+                <option key={subject} value={subject}>{subject}</option>
+              ))}
+            </select>
+          </div>
+          <div className="text-sm text-slate-400">
+            {filteredData.nodes.length} nós mostrados
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {/* Zoom functionality removed - method not available */}}
+            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-sm opacity-50 cursor-not-allowed"
+            disabled
+          >
+            Ajustar Zoom
+          </button>
+          <button
+            onClick={() => {/* Center functionality removed - method not available */}}
+            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-sm opacity-50 cursor-not-allowed"
+            disabled
+          >
+            Centralizar
+          </button>
+        </div>
+      </div>
+
+      {/* Grafo */}
+      <div className="relative w-full h-[600px] bg-slate-950 rounded-lg border border-slate-800">
+        <ForceGraph2D
+          ref={fgRef}
+          graphData={filteredData}
+          nodeCanvasObject={renderNode}
+          onNodeHover={handleNodeHover}
+          onNodeClick={(node) => onNodeClick(node as KnowledgeNode)}
+          linkColor={() => 'rgba(100, 116, 139, 0.3)'}
+          linkWidth={1}
+          backgroundColor="rgba(0, 0, 0, 0)"
+          cooldownTicks={100}
+          d3VelocityDecay={0.3}
+        />
+        {tooltip && (
+           <div 
+           className="absolute p-3 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300 font-mono z-20 pointer-events-none transition-opacity"
+           style={{ 
+             left: tooltip.x, 
+             top: tooltip.y,
            transform: 'translate(-50%, -120%)' // Position tooltip above the node
-          }}
+          }} // NOSONAR: tooltip precisa de coordenadas dinâmicas
        >
          <h4 className="font-bold text-emerald-400 mb-1">{tooltip.node.name}</h4>
          <div><span className="font-semibold">ROI Score:</span> {tooltip.node.roi_score.toFixed(2)}</div>
@@ -161,6 +217,7 @@ const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ onNodeClick }) => {
          <div><span className="font-semibold">Stability:</span> {tooltip.node.stability.toFixed(2)}</div>
        </div>
       )}
+      </div>
     </div>
   );
 };

@@ -28,7 +28,7 @@ export function ExamSimulator({ plan, onComplete }: ExamSimulatorProps) {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [timeLeft]);
+  }, [timeLeft, onComplete]);
 
   const itemsWithMeta = useMemo(() => {
     const arr: Array<{ item: StudyItem; topic?: string }> = [];

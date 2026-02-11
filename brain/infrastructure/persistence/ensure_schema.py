@@ -16,8 +16,12 @@ def ensure_schema():
     if "postgresql" in (SYNC_DATABASE_URL or ""):
         with engine.begin() as conn:
             print("Banco PostgreSQL detectado — aplicando alterações seguras...")
-            # Adiciona a coluna se não existir
-            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS cognitive_profile_id uuid;"))
+            # Adiciona colunas de autenticação para students
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS email varchar(255) UNIQUE;"))
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash text;"))
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_active integer DEFAULT 1;"))
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS created_at timestamp DEFAULT CURRENT_TIMESTAMP;"))
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS last_login_at timestamp;"))
 
             # Popula cognitive_profile_id a partir da tabela cognitive_profiles quando possível
             conn.execute(text(

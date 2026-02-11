@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from typing import Dict, List
 
-from brain.domain.entities.student import Student, StudentGoal
+from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.performance_event import (
     PerformanceEvent,
@@ -20,7 +20,9 @@ def fake_student(
     *,
     student_id: UUID | None = None,
     name: str = "Test Student",
-    goal: StudentGoal = StudentGoal.POLICIA_FEDERAL,
+    email: str = "test@example.com",
+    password_hash: str = "hashed_password",
+    goal: str = "POLICIA_FEDERAL",
 ) -> Student:
     return Student(
         id=student_id or uuid4(),

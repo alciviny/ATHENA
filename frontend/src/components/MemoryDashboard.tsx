@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
 import { Brain, TrendingDown, AlertCircle, CheckCircle } from 'lucide-react';
-import { studyService } from '../services/studyService';
+import { useMemoryStatus } from '../hooks/useStudyData';
 
 interface MemoryStatus {
   subject_name: string;
@@ -11,24 +10,8 @@ interface MemoryStatus {
 }
 
 export function MemoryDashboard() {
-  const [memoryData, setMemoryData] = useState<MemoryStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadMemoryStatus();
-  }, []);
-
-  const loadMemoryStatus = async () => {
-    setLoading(true);
-    try {
-      const data = await studyService.getMemoryStatus();
-      setMemoryData(data);
-    } catch (error) {
-      console.error('Erro ao carregar status de memória:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // React Query hook - cache automático
+  const { data: memoryData = [], isLoading: loading } = useMemoryStatus();
 
   if (loading) {
     return (
@@ -39,9 +22,9 @@ export function MemoryDashboard() {
     );
   }
 
-  const criticalTopics = memoryData.filter(m => m.needs_review || m.current_retention < 0.7);
-  const warningTopics = memoryData.filter(m => !m.needs_review && m.current_retention >= 0.7 && m.current_retention < 0.9);
-  const solidTopics = memoryData.filter(m => m.current_retention >= 0.9);
+  const criticalTopics = memoryData.filter((m: MemoryStatus) => m.needs_review || m.current_retention < 0.7);
+  const warningTopics = memoryData.filter((m: MemoryStatus) => !m.needs_review && m.current_retention >= 0.7 && m.current_retention < 0.9);
+  const solidTopics = memoryData.filter((m: MemoryStatus) => m.current_retention >= 0.9);
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
@@ -80,8 +63,8 @@ export function MemoryDashboard() {
             Urgente - Risco de Esquecimento
           </h2>
           <div className="space-y-3">
-            {criticalTopics.map((topic, idx) => (
-              <MemoryCard key={idx} topic={topic} />
+            {criticalTopics.map((topic: MemoryStatus) => (
+              <MemoryCard key={topic.subject_name} topic={topic} />
             ))}
           </div>
         </div>
@@ -95,8 +78,8 @@ export function MemoryDashboard() {
             Requer Atenção
           </h2>
           <div className="space-y-3">
-            {warningTopics.map((topic, idx) => (
-              <MemoryCard key={idx} topic={topic} />
+            {warningTopics.map((topic: MemoryStatus) => (
+              <MemoryCard key={topic.subject_name} topic={topic} />
             ))}
           </div>
         </div>
@@ -110,8 +93,8 @@ export function MemoryDashboard() {
             Bem Consolidados
           </h2>
           <div className="space-y-3">
-            {solidTopics.map((topic, idx) => (
-              <MemoryCard key={idx} topic={topic} />
+            {solidTopics.map((topic: MemoryStatus) => (
+              <MemoryCard key={topic.subject_name} topic={topic} />
             ))}
           </div>
         </div>
@@ -178,7 +161,7 @@ function MemoryCard({ topic }: { topic: MemoryStatus }) {
       <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
         <div 
           className={`h-full ${retentionColor} transition-all duration-500`}
-          style={{ width: `${retentionPercent}%` }}
+          style={{ width: `${retentionPercent}%` }} // NOSONAR: barra de retenção precisa refletir percentual em tempo real
         />
       </div>
 

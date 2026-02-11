@@ -24,20 +24,25 @@ def qdrant_repository(mock_qdrant_client):
 @pytest.mark.asyncio
 async def test_find_semantically_related_success(qdrant_repository, mock_qdrant_client):
     reference_node_id = UUID("a1a2a3a4-b1b2-c1c2-d1d2-e1e2e3e4e5e6")
-    mock_qdrant_client.recommend.return_value = [
+    mock_qdrant_client.query_points.return_value = [
         ScoredPoint(id="f1f2f3f4-a1b2-c1d2-e1f2-a1b2c3d4e5f6", version=0, score=0.9, payload=None, vector=None),
         ScoredPoint(id="a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6", version=0, score=0.8, payload=None, vector=None),
     ]
 
     result = await qdrant_repository.find_semantically_related(reference_node_id, limit=2)
 
-    mock_qdrant_client.recommend.assert_awaited_once_with(
-        collection_name="athena_knowledge",
-        positive=[str(reference_node_id)],
-        limit=2,
-        with_payload=False,
-        with_vectors=False,
-    )
+    # Verificar que query_points foi chamado com os parâmetros corretos
+    mock_qdrant_client.query_points.assert_awaited_once()
+    call_args = mock_qdrant_client.query_points.call_args
+    assert call_args[1]['collection_name'] == "athena_knowledge"
+    assert call_args[1]['limit'] == 2
+    assert call_args[1]['with_payload'] is False
+    assert call_args[1]['with_vectors'] is False
+    # Verificar que o query é um RecommendQuery
+    query = call_args[1]['query']
+    assert hasattr(query, 'recommend')
+    assert query.recommend.positive == [str(reference_node_id)]
+    
     assert len(result) == 2
     assert result[0] == UUID("f1f2f3f4-a1b2-c1d2-e1f2-a1b2c3d4e5f6")
     assert result[1] == UUID("a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6")
@@ -46,12 +51,12 @@ async def test_find_semantically_related_success(qdrant_repository, mock_qdrant_
 @pytest.mark.asyncio
 async def test_find_semantically_related_unexpected_response(qdrant_repository, mock_qdrant_client, caplog):
     reference_node_id = UUID("a1a2a3a4-b1b2-c1c2-d1d2-e1e2e3e4e5e6")
-    mock_qdrant_client.recommend.side_effect = UnexpectedResponse(status_code=500, reason_phrase="Test reason", content="Test content", headers={})
+    mock_qdrant_client.query_points.side_effect = UnexpectedResponse(status_code=500, reason_phrase="Test reason", content="Test content", headers={})
 
     with caplog.at_level("WARNING"):
         result = await qdrant_repository.find_semantically_related(reference_node_id)
 
-    mock_qdrant_client.recommend.assert_awaited_once()
+    mock_qdrant_client.query_points.assert_awaited_once()
     assert result == []
     assert "Qdrant respondeu de forma inesperada ao recomendar similaridade." in caplog.text
 
@@ -59,7 +64,7 @@ async def test_find_semantically_related_unexpected_response(qdrant_repository, 
 @pytest.mark.asyncio
 async def test_find_semantically_related_generic_exception(qdrant_repository, mock_qdrant_client, caplog):
     reference_node_id = UUID("a1a2a3a4-b1b2-c1c2-d1d2-e1e2e3e4e5e6")
-    mock_qdrant_client.recommend.side_effect = Exception("Generic test error")
+    mock_qdrant_client.query_points.side_effect = Exception("Generic test error")
 
     with caplog.at_level("ERROR"):
         result = await qdrant_repository.find_semantically_related(reference_node_id)

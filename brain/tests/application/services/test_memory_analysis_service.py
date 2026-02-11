@@ -4,7 +4,7 @@ from uuid import uuid4
 from datetime import datetime
 
 from brain.application.services.memory_analysis_service import MemoryAnalysisService
-from brain.domain.entities.student import Student, StudentGoal
+from brain.domain.entities.student import Student
 from brain.domain.entities.performance_event import PerformanceEvent, PerformanceEventType, PerformanceMetric
 from brain.domain.entities.knowledge_node import KnowledgeNode
 
@@ -12,7 +12,7 @@ from brain.domain.entities.knowledge_node import KnowledgeNode
 @pytest.fixture
 def setup_data():
     student_id = uuid4()
-    student = Student(id=student_id, name="Test Student", goal=StudentGoal.INSS)
+    student = Student(id=student_id, name="Test Student", email="test@example.com", password_hash="hashed_password", goal="INSS")
     node_1 = KnowledgeNode(id=uuid4(), name="Math", subject="Math")
     node_2 = KnowledgeNode(id=uuid4(), name="History", subject="History")
     history = [

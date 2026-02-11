@@ -7,7 +7,7 @@ from brain.infrastructure.persistence.models import KnowledgeNodeModel
 from brain.domain.services.graph_validator import KnowledgeGraphValidator, GraphValidationError
 from brain.domain.entities.knowledge_node import KnowledgeNode
 
-async def seed_knowledge_graph():
+def seed_knowledge_graph():
     # Carregamento do currículo estruturado
     with open("brain/data/initial_curriculum.json", "r") as f:
         data = json.load(f)
@@ -19,7 +19,11 @@ async def seed_knowledge_graph():
         # 1. Criar instâncias de domínio temporárias para validação
         # É preciso simular o grafo com objetos de domínio antes de persistir
         temp_node_map = {
-            n_data["id"]: KnowledgeNode(id=n_data["id"], name=n_data["name"])
+            n_data["id"]: KnowledgeNode(
+                id=n_data["id"], 
+                name=n_data["name"],
+                subject="Programação"  # Campo obrigatório
+            )
             for n_data in data["nodes"]
         }
 
@@ -42,7 +46,9 @@ async def seed_knowledge_graph():
         print(f"❌ ERRO CRÍTICO: Dependência não encontrada no JSON: {e}")
         return
 
-    async with SessionLocal() as session:
+    db = SessionLocal()
+
+    try:
         print("🔄 Iniciando persistência no banco de dados...")
         # Lógica de persistência (mapeamento de UUIDs e commit)
         db_node_map = {}
@@ -55,7 +61,7 @@ async def seed_knowledge_graph():
                 importance_weight=item.get("importance", 1.0)
             )
             db_node_map[item["id"]] = node
-            session.add(node)
+            db.add(node)
 
         # Estabelecer as conexões de dependência usando os novos modelos do DB
         for item in data["nodes"]:
@@ -66,8 +72,11 @@ async def seed_knowledge_graph():
                         parent_db_node = db_node_map[dep_id]
                         current_db_node.dependencies.append(parent_db_node)
         
-        await session.commit()
+        db.commit()
         print("✅ Grafo de Conhecimento carregado com sucesso!")
 
+    finally:
+        db.close()
+
 if __name__ == "__main__":
-    asyncio.run(seed_knowledge_graph())
+    seed_knowledge_graph()

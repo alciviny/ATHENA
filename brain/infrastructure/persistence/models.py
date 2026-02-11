@@ -4,6 +4,7 @@ from brain.infrastructure.persistence.database import Base
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import Integer, DateTime
+from datetime import datetime
 
 # Tabela de associação para dependências (Muitos-para-Muitos)
 node_dependencies = Table(
@@ -34,8 +35,8 @@ class KnowledgeNodeModel(Base):
     stability = Column(Float, default=1.0)
     reps = Column(Integer, default=0)
     lapses = Column(Integer, default=0)
-    last_reviewed_at = Column(DateTime, nullable=True)
-    next_review_at = Column(DateTime, nullable=True)
+    last_reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    next_review_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relacionamento de Dependência: Um nó "filho" depende de nós "pais"
     dependencies = relationship(
@@ -67,7 +68,12 @@ class StudentModel(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
     goal = Column(String, nullable=True)
+    is_active = Column(Integer, default=1)  # 1 = active, 0 = inactive
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relação opcional com CognitiveProfileModel
     cognitive_profile_id = Column(UUID(as_uuid=True), ForeignKey("cognitive_profiles.id"))

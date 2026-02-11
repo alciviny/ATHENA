@@ -17,7 +17,7 @@ from brain.infrastructure.persistence.models import (
     StudyPlanModel,
     ErrorEventModel
 )
-from brain.domain.entities.student import Student, StudentGoal
+from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.performance_event import PerformanceEvent, PerformanceEventType, PerformanceMetric
 from brain.domain.entities.error_event import ErrorEvent
@@ -41,10 +41,50 @@ class PostgresStudentRepository(ports.StudentRepository):
             return Student(
                 id=student_model.id,
                 name=student_model.name,
-                goal=StudentGoal(student_model.goal),
+                email=student_model.email,
+                password_hash=student_model.password_hash,
+                goal=student_model.goal,
+                is_active=bool(student_model.is_active),
+                created_at=student_model.created_at,
+                last_login_at=student_model.last_login_at,
                 cognitive_profile_id=student_model.cognitive_profile.id if student_model.cognitive_profile else None,
             )
         return None
+
+    async def get_by_email(self, email: str) -> Optional[Student]:
+        """Get student by email for authentication."""
+        query = (
+            select(StudentModel)
+            .options(selectinload(StudentModel.cognitive_profile))
+            .filter(StudentModel.email == email)
+        )
+        result = await self.db.execute(query)
+        student_model = result.scalars().first()
+        if student_model:
+            return Student(
+                id=student_model.id,
+                name=student_model.name,
+                email=student_model.email,
+                password_hash=student_model.password_hash,
+                goal=student_model.goal,
+                is_active=bool(student_model.is_active),
+                created_at=student_model.created_at,
+                last_login_at=student_model.last_login_at,
+                cognitive_profile_id=student_model.cognitive_profile.id if student_model.cognitive_profile else None,
+            )
+        return None
+
+    async def update_last_login(self, student_id: UUID) -> None:
+        """Update the last login timestamp for a student."""
+        query = (
+            select(StudentModel)
+            .filter(StudentModel.id == student_id)
+        )
+        result = await self.db.execute(query)
+        student_model = result.scalars().first()
+        if student_model:
+            student_model.last_login_at = datetime.utcnow()
+            await self.db.commit()
 
 class PostgresPerformanceRepository(ports.PerformanceRepository):
     def __init__(self, db: AsyncSession):
@@ -98,8 +138,45 @@ class PostgresPerformanceRepository(ports.PerformanceRepository):
         ]
 
     async def get_history(self, student_id: UUID, node_id: UUID) -> List[PerformanceEvent]:
-        # Placeholder implementation
-        return []
+        """
+        Recupera histórico de performance para um estudante e nó específico.
+        Filtra por student_id e usa node_id para matching com topic ou event_metadata.
+        """
+        from sqlalchemy import select
+        
+        # Query para buscar eventos filtrando por estudante
+        stmt = select(PerformanceEventModel).where(
+            PerformanceEventModel.student_id == student_id
+        ).order_by(PerformanceEventModel.occurred_at.desc())
+        
+        result = await self.db.execute(stmt)
+        event_models = result.scalars().all()
+        
+        # Filtrar eventos relacionados ao node_id
+        # Pode ser através do topic (se for o nome/id do nó) ou event_metadata
+        filtered_events = []
+        for model in event_models:
+            # Verificar se o node_id está no topic ou em event_metadata
+            if (model.topic and str(node_id) in model.topic) or \
+               (model.event_metadata and str(node_id) in str(model.event_metadata)):
+                filtered_events.append(model)
+        
+        # Converter para entidades de domínio
+        return [
+            PerformanceEvent(
+                id=model.id,
+                student_id=model.student_id,
+                event_type=PerformanceEventType(model.event_type),
+                occurred_at=model.occurred_at,
+                topic=model.topic,
+                metric=PerformanceMetric(model.metric),
+                value=model.value,
+                baseline=model.baseline,
+                root_cause=model.root_cause,
+                event_metadata=model.event_metadata or {},
+            )
+            for model in filtered_events
+        ]
         
     async def save(self, event: PerformanceEvent) -> None:
         model = PerformanceEventModel(
@@ -217,9 +294,8 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
             model.difficulty = node.difficulty
             model.reps = node.reps
             model.lapses = node.lapses
-            # Remover timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE
-            model.last_reviewed_at = node.last_reviewed_at.replace(tzinfo=None) if node.last_reviewed_at else None
-            model.next_review_at = node.next_review_at.replace(tzinfo=None) if node.next_review_at else None
+            model.last_reviewed_at = node.last_reviewed_at
+            model.next_review_at = node.next_review_at
             model.weight = node.weight
             await self.db.flush()
 
@@ -233,9 +309,8 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
             model.difficulty = node.difficulty
             model.reps = node.reps
             model.lapses = node.lapses
-            # Remover timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE
-            model.last_reviewed_at = node.last_reviewed_at.replace(tzinfo=None) if node.last_reviewed_at else None
-            model.next_review_at = node.next_review_at.replace(tzinfo=None) if node.next_review_at else None
+            model.last_reviewed_at = node.last_reviewed_at
+            model.next_review_at = node.next_review_at
             model.weight = node.weight
         else:
             model = KnowledgeNodeModel(
@@ -248,9 +323,8 @@ class PostgresKnowledgeRepository(ports.KnowledgeRepository):
                 difficulty=node.difficulty,
                 reps=node.reps,
                 lapses=node.lapses,
-                # Remover timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE
-                last_reviewed_at=node.last_reviewed_at.replace(tzinfo=None) if node.last_reviewed_at else None,
-                next_review_at=node.next_review_at.replace(tzinfo=None) if node.next_review_at else None,
+                last_reviewed_at=node.last_reviewed_at,
+                next_review_at=node.next_review_at,
             )
             self.db.add(model)
         await self.db.flush()

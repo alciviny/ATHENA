@@ -10,11 +10,14 @@ if project_root not in sys.path:
 from sqlalchemy.orm import Session
 from brain.infrastructure.persistence.database import SessionLocal, engine, Base
 from brain.infrastructure.persistence.models import StudentModel, CognitiveProfileModel
+from brain.api.fastapi.auth.security import get_password_hash
 
 # O ID do estudante que o frontend espera
 STUDENT_ID = uuid.UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479")
 COGNITIVE_PROFILE_ID = uuid.uuid4()
 STUDENT_NAME = "Aluno Teste"
+STUDENT_EMAIL = "aluno@teste.com"
+STUDENT_PASSWORD = "teste123"
 STUDENT_GOAL = "Polícia Federal"
 
 def seed_database():
@@ -31,6 +34,18 @@ def seed_database():
         # Verifica se o estudante já existe
         existing_student = db.query(StudentModel).filter(StudentModel.id == STUDENT_ID).first()
         if existing_student:
+            # Update missing fields if needed
+            updated = False
+            if not hasattr(existing_student, 'email') or not existing_student.email:
+                existing_student.email = STUDENT_EMAIL
+                updated = True
+            if not hasattr(existing_student, 'password_hash') or not existing_student.password_hash:
+                existing_student.password_hash = get_password_hash(STUDENT_PASSWORD)
+                updated = True
+            if updated:
+                db.commit()
+                print(f"Estudante existente atualizado com campos de autenticação.")
+
             if not existing_student.cognitive_profile:
                 print(f"Estudante existe mas não tem perfil cognitivo. Criando...")
                 new_profile = CognitiveProfileModel(
@@ -54,6 +69,8 @@ def seed_database():
         new_student = StudentModel(
             id=STUDENT_ID,
             name=STUDENT_NAME,
+            email=STUDENT_EMAIL,
+            password_hash=get_password_hash(STUDENT_PASSWORD),
             goal=STUDENT_GOAL,
         )
 

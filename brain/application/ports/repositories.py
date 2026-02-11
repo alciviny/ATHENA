@@ -14,6 +14,14 @@ class StudentRepository(ABC):
     async def get_by_id(self, student_id: UUID) -> Optional[Student]:
         pass
 
+    @abstractmethod
+    async def get_by_email(self, email: str) -> Optional[Student]:
+        pass
+
+    @abstractmethod
+    async def update_last_login(self, student_id: UUID) -> None:
+        pass
+
 class PerformanceRepository(ABC):
     @abstractmethod
     async def get_recent_events(self, student_id: UUID, limit: int = 50) -> List[PerformanceEvent]:
