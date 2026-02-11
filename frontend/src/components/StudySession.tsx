@@ -1,18 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { StudyPlan, StudyItem, FeynmanResult } from '../types/athena';
-import { studyService } from '../services/studyService';
+import { useSubmitReview, useValidateFeynman } from '../hooks/useStudyData';
 import { Brain } from 'lucide-react';
 
 // --- Components ---
 
-function MemoryHealthBar({ retention, stability }: { retention: number, stability: number }) {
+function MemoryHealthBar({ retention, stability }: { readonly retention: number; readonly stability: number }) {
   let colorClass = "bg-emerald-500";
   if (retention < 0.7) colorClass = "bg-red-500 animate-pulse";
   else if (retention < 0.9) colorClass = "bg-amber-500";
 
   return (
     <div className="w-full space-y-2 mb-6">
-      <div className="flex justify-between text-xs uppercase tracking-widest font-bold text-slate-500">
+      <div className="flex justify-between text-xs uppercase tracking-widest font-bold text-slate-300">
         <span>Probabilidade de Recall</span>
         <span>Estabilidade: {stability.toFixed(1)} dias</span>
       </div>
@@ -20,10 +20,10 @@ function MemoryHealthBar({ retention, stability }: { retention: number, stabilit
         <div className="absolute left-[70%] top-0 bottom-0 w-0.5 bg-slate-600/50 z-10" title="Zona de Esquecimento"></div>
         <div
           className={`h-full ${colorClass} transition-all duration-1000 ease-out`}
-          style={{ width: `${retention * 100}%` }}
+          style={{ width: `${retention * 100}%` }} // NOSONAR: largura precisa refletir percentuais em tempo real
         ></div>
       </div>
-      <p className="text-[10px] text-center text-slate-600 font-mono">
+      <p className="text-[10px] text-center text-slate-400 font-mono">
         {retention < 0.5 ? "⚠️ CRÍTICO: Risco iminente de falha sináptica" : "Conexão neural estável"}
       </p>
     </div>
@@ -37,7 +37,7 @@ const rootCauseOptions = [
   { id: 'stress', label: 'Pressão do Tempo' },
 ];
 
-function RootCauseSelector({ selectedCause, onSelectCause }: { selectedCause: string | null; onSelectCause: (cause: string) => void; }) {
+function RootCauseSelector({ selectedCause, onSelectCause }: { readonly selectedCause: string | null; readonly onSelectCause: (cause: string) => void; }) {
   return (
     <div className="mt-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
       <h3 className="text-sm font-bold text-center text-red-400 mb-3">Qual foi a causa principal do erro?</h3>
@@ -66,7 +66,7 @@ const selfRatingOptions = [
     { id: 'correct', label: 'Acertei na Mosca', grade: 4, color: 'bg-green-500/20 text-green-300 border-green-500/50' },
 ];
 
-function SelfRatingSelector({ selectedGrade, onSelectGrade }: { selectedGrade: number | null; onSelectGrade: (grade: number) => void; }) {
+function SelfRatingSelector({ selectedGrade, onSelectGrade }: { readonly selectedGrade: number | null; readonly onSelectGrade: (grade: number) => void; }) {
     return (
       <div className="mt-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
         <h3 className="text-sm font-bold text-center text-sky-400 mb-3">Auto-avaliação da Previsão</h3>
@@ -92,23 +92,27 @@ function SelfRatingSelector({ selectedGrade, onSelectGrade }: { selectedGrade: n
 // --- Main Component ---
 
 interface StudySessionProps {
-  plan: StudyPlan;
-  onComplete: () => void;
-  onExit: () => void;
+  readonly plan: StudyPlan;
+  readonly onComplete: () => void;
+  readonly onExit: () => void;
 }
 
 type StudyPhase = 'RECALL' | 'FEEDBACK' | 'FEYNMAN';
 
+// NOSONAR: complexidade inerente ao fluxo de sessão interativa; mantemos por necessidade de produto
 export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
+  // React Query mutations
+  const { mutate: submitReview } = useSubmitReview();
+  const { mutate: validateFeynman, isPending: isAnalyzing } = useValidateFeynman();
+  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [phase, setPhase] = useState<StudyPhase>('RECALL');
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [startTime, setStartTime] = useState(Date.now());
+  const [startTime, setStartTime] = useState(() => Date.now());
   const [selectedRootCause, setSelectedRootCause] = useState<string | null>(null);
   
   // State for Feynman Challenge
   const [feynmanExplanation, setFeynmanExplanation] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [feynmanResult, setFeynmanResult] = useState<FeynmanResult | null>(null);
 
   // --- NEW STATE for Scenario Mode ---
@@ -119,9 +123,10 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
   const [semanticPropagating, setSemanticPropagating] = useState(false);
   const [showFeynmanChallenge, setShowFeynmanChallenge] = useState(false);
 
-
+  // Reset state when moving to a new card
+  // Note: This is an intentional pattern to sync state with currentIndex changes
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Reset state for each new card
     setStartTime(Date.now());
     setSelectedRootCause(null);
     setSelectedOption(null);
@@ -130,6 +135,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
     setFeynmanResult(null);
     setPhase('RECALL');
   }, [currentIndex]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   
   const itemsWithMeta = useMemo(() => {
     const arr: Array<{ item: StudyItem; topic?: string; sessionId?: string, focus_level?: string }> = [];
@@ -166,7 +172,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
     }
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const responseTime = (Date.now() - startTime) / 1000;
     
     // Determine grade and correctness
@@ -174,52 +180,63 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
     const isCorrect = isScenario ? selfRatedGrade === 4 : selectedOption === correctIndex;
     const grade = isScenario ? selfRatedGrade : null; // Use self-rated grade for scenarios
 
-    try {
-      const reviewResponse = await studyService.submitReview(
-        currentNode.id,
-        isCorrect,
-        responseTime,
-        grade, // explicit_grade
-        isCorrect ? undefined : selectedRootCause || undefined
-      );
+    // Submit review usando React Query mutation
+    submitReview({
+      nodeId: currentNode.id,
+      success: isCorrect,
+      responseTime,
+      explicitGrade: grade,
+      rootCause: isCorrect ? undefined : selectedRootCause || undefined
+    }, {
+      onSuccess: (reviewResponse) => {
+        // Show semantic propagation indicator if error occurred
+        if (!isCorrect) {
+          setSemanticPropagating(true);
+          setTimeout(() => setSemanticPropagating(false), 3000);
+        }
 
-      // Show semantic propagation indicator if error occurred
-      if (!isCorrect) {
-        setSemanticPropagating(true);
-        setTimeout(() => setSemanticPropagating(false), 3000);
-      }
+        if (reviewResponse.trigger_feynman) {
+          setPhase('FEYNMAN');
+          setFeynmanResult(null);
+          setFeynmanExplanation('');
+          return;
+        }
 
-      if (reviewResponse.trigger_feynman) {
-        setPhase('FEYNMAN');
-        setFeynmanResult(null);
-        setFeynmanExplanation('');
-        return;
-      }
-
-    } catch (error) {
+        // Move to next item
+        if (currentIndex < items.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          onComplete();
+        }
+      },
+      onError: (error) => {
         console.error("Failed to submit review:", error);
-    }
-    
-    // Move to next item
-    if (currentIndex < items.length - 1) {
-        setCurrentIndex(currentIndex + 1);
-    } else {
-        onComplete();
-    }
+        // Move to next anyway
+        if (currentIndex < items.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          onComplete();
+        }
+      }
+    });
   };
 
-  const handleFeynmanSubmit = async () => {
-    setIsAnalyzing(true);
-    setFeynmanResult(null);
-    try {
-      const result = await studyService.validateFeynman(currentNode.id, feynmanExplanation);
-      setFeynmanResult(result);
-    } catch (error) {
-      console.error("Failed to validate Feynman explanation:", error);
-    }
-    setIsAnalyzing(false);
-    setShowFeynmanChallenge(false);
-    setPhase('FEEDBACK');
+  const handleFeynmanSubmit = () => {
+    validateFeynman({
+      nodeId: currentNode.id,
+      explanation: feynmanExplanation
+    }, {
+      onSuccess: (result) => {
+        setFeynmanResult(result);
+        setShowFeynmanChallenge(false);
+        setPhase('FEEDBACK');
+      },
+      onError: (error) => {
+        console.error("Failed to validate Feynman explanation:", error);
+        setShowFeynmanChallenge(false);
+        setPhase('FEEDBACK');
+      }
+    });
   };
 
   const handleFeynmanChallenge = () => {
@@ -292,7 +309,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
       {/* --- RECALL PHASE --- */}
       {phase === 'RECALL' && (
         <div className="text-center space-y-6 animate-fade-in">
-          <div className={`p-4 rounded-xl ${isScenario ? 'bg-slate-950/70 border-purple-800/50' : 'bg-slate-950/50 border-slate-800/50'} border`}>
+          <div className={`p-4 rounded-xl ${isScenario ? 'bg-slate-900 border-purple-800/50' : 'bg-slate-900 border-slate-700'} border`}>
             <MemoryHealthBar 
               retention={currentNode.current_retention || 0.5}
               stability={currentNode.stability || 1}
@@ -335,7 +352,7 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {options.map((option: string, index: number) => (
                     <button
-                      key={index}
+                      key={`${currentNode.id}-opt-${index}`}
                       onClick={() => handleSelectOption(index)}
                       className="p-4 bg-slate-800 rounded-lg text-white hover:bg-slate-700 transition-colors duration-200"
                     >
@@ -407,21 +424,27 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
           {feynmanResult ? (
             // Feynman Feedback
             <div className="space-y-6">
-              <h2 className={`text-3xl font-bold ${feynmanResult.score >= 0.8 ? 'text-green-400' : feynmanResult.score >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {feynmanResult.score >= 0.8 ? 'Excelente explicação!' : feynmanResult.score >= 0.6 ? 'Quase lá!' : 'Precisa melhorar'}
-              </h2>
-
-              {/* Score */}
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-slate-400 text-sm font-medium">Score:</span>
-                <div className="w-48 h-3 bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${feynmanResult.score >= 0.8 ? 'bg-green-500' : feynmanResult.score >= 0.6 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.round(feynmanResult.score * 100)}%` }}
-                  />
-                </div>
-                <span className="text-white font-bold">{Math.round(feynmanResult.score * 100)}%</span>
-              </div>
+              {(() => {
+                const scorePercent = Math.round(feynmanResult.score * 100);
+                const scoreClass = feynmanResult.score >= 0.8 ? 'text-green-400' : feynmanResult.score >= 0.6 ? 'text-yellow-400' : 'text-red-400';
+                const scoreLabel = feynmanResult.score >= 0.8 ? 'Excelente explicação!' : feynmanResult.score >= 0.6 ? 'Quase lá!' : 'Precisa melhorar';
+                const barClass = feynmanResult.score >= 0.8 ? 'bg-green-500' : feynmanResult.score >= 0.6 ? 'bg-yellow-500' : 'bg-red-500';
+                return (
+                  <>
+                    <h2 className={`text-3xl font-bold ${scoreClass}`}>{scoreLabel}</h2>
+                    <div className="flex items-center justify-center gap-3">
+                      <span className="text-slate-400 text-sm font-medium">Score:</span>
+                      <div className="w-48 h-3 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${barClass}`}
+                          style={{ width: `${scorePercent}%` }} // NOSONAR: barra de progresso depende de percentuais calculados em runtime
+                        />
+                      </div>
+                      <span className="text-white font-bold">{scorePercent}%</span>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Feedback da IA */}
               <div className="p-6 bg-slate-900 rounded-lg text-left space-y-4 border border-slate-700">
@@ -435,8 +458,8 @@ export function StudySession({ plan, onComplete, onExit }: StudySessionProps) {
                   <div>
                     <h3 className="font-bold text-amber-400 text-sm uppercase tracking-wider mb-2">Conceitos para revisar</h3>
                     <ul className="list-disc list-inside space-y-1">
-                      {feynmanResult.missing_concepts.map((concept, i) => (
-                        <li key={i} className="text-slate-300">{concept}</li>
+                      {feynmanResult.missing_concepts.map((concept) => (
+                        <li key={concept} className="text-slate-300">{concept}</li>
                       ))}
                     </ul>
                   </div>

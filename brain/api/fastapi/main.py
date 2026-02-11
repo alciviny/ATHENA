@@ -14,8 +14,10 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from brain.api.fastapi.routes import study_routes, performance_routes, roi_routes, memory_routes
+from brain.api.fastapi.auth.routes import router as auth_router
 from brain.api.fastapi.middleware.rate_limit import RateLimitMiddleware
 from brain.api.fastapi.middleware.logging import LoggingMiddleware
+from brain.api.fastapi.middleware.security import SecurityHeadersMiddleware
 from brain.domain.exceptions import AthenaException, APIException
 from brain.infrastructure.logging import get_logger
 
@@ -76,21 +78,26 @@ def generic_exception_handler(request, exc: Exception):
 app = FastAPI(
     title="Athena Brain - Intelligent Adaptive Engine",
     version="1.0.0",
+    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None,
 )
 
 # =========================================================
 # Middlewares (ordem importa!)
 # =========================================================
 
-# 1. Logging middleware (primeiro para capturar tudo)
+# 1. Security headers (primeiro para todos os responses)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. Logging middleware
 app.add_middleware(LoggingMiddleware)
 
-# 2. Rate limiting (antes de processar rotas)
+# 3. Rate limiting (antes de processar rotas)
 app.add_middleware(
     RateLimitMiddleware,
     max_requests=100,  # 100 requisições
     window_seconds=60,  # por minuto
-    exempt_paths=["/", "/health", "/docs", "/redoc", "/openapi.json"]
+    exempt_paths=["/", "/health", "/docs", "/redoc", "/openapi.json", "/auth/login"]
 )
 
 # =========================================================
@@ -104,6 +111,12 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # =========================================================
 # Routes
 # =========================================================
+
+# Auth routes (não precisam de autenticação)
+app.include_router(
+    auth_router,
+    tags=["Authentication"],
+)
 
 app.include_router(
     study_routes.router,

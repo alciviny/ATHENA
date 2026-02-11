@@ -50,15 +50,46 @@ const api = axios.create({
   },
 });
 
+// Interceptor para adicionar token de autenticação
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('athena_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+/**
+ * Serviço de API para operações de estudo
+ * Todas as funções agora recebem studentId como parâmetro (injeção de dependência)
+ */
 export const studyService = {
-  getRoiReport: async (): Promise<RoiReport> => {
-    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+  getRoiReport: async (studentId: string): Promise<RoiReport> => {
     const response = await api.get(`/api/students/${studentId}/graph`);
     return response.data;
   },
 
-  generatePlan: async (): Promise<StudyPlan> => {
-    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+  getStudentSubjects: async (studentId: string) => {
+    const response = await api.get(`/api/performance/subjects/${studentId}`);
+    return response.data as {
+      student_id: string;
+      subjects: string[];
+      total_subjects: number;
+    };
+  },
+
+  getPerformanceSummary: async (studentId: string) => {
+    const response = await api.get(`/api/performance/summary/${studentId}`);
+    return response.data as {
+      student_id: string;
+      total_time_seconds: number;
+      average_accuracy: number;
+      recent_errors: number;
+      total_events: number;
+    };
+  },
+
+  generatePlan: async (studentId: string): Promise<StudyPlan> => {
     let response;
     try {
       response = await api.post(`/api/study/generate-plan/${studentId}`);
@@ -81,10 +112,9 @@ export const studyService = {
     const backendData = response.data;
     // DEBUG: expõe payload bruto para inspeção no console do navegador
     try {
-      // eslint-disable-next-line no-console
       console.log('studyService.generatePlan - backendData:', backendData);
       // Expor globalmente para fácil inspeção no DevTools
-      (window as unknown as { __LAST_STUDY_PLAN_RESPONSE: unknown }).__LAST_STUDY_PLAN_RESPONSE = backendData;
+      (globalThis as Record<string, unknown>).__LAST_STUDY_PLAN_RESPONSE = backendData;
     } catch {
       // ignore
     }
@@ -107,7 +137,7 @@ export const studyService = {
               options: item.content?.options,
               correct_index: item.content?.correct_index,
               explanation: item.content?.back,
-              stability: item.stability ?? 1.0,
+              stability: item.stability ?? 1,
               current_retention: item.current_retention ?? 0.9,
               topic_roi: item.topic_roi, // Mapeia o rótulo estratégico do backend
               // CORRIGINDO: Adicionando propriedades que estavam faltando
@@ -138,7 +168,7 @@ export const studyService = {
               id: c.id || `fc-${idx}`,
               type: c.type || 'flashcard',
               content: c.content,
-              stability: c.stability ?? 1.0,
+              stability: c.stability ?? 1,
               current_retention: c.current_retention ?? 0.5,
               // CORRIGINDO: Adicionando propriedades que estavam faltando
               difficulty: c.difficulty ?? 0.5,
@@ -157,7 +187,7 @@ export const studyService = {
               options: c.opcoes || [],
               correct_index: c.correta_index ?? 0,
             },
-            stability: c.stability ?? 1.0,
+            stability: c.stability ?? 1,
             current_retention: c.current_retention ?? 0.5,
             // CORRIGINDO: Adicionando propriedades que estavam faltando
             difficulty: 0.5,
@@ -172,7 +202,7 @@ export const studyService = {
     // 3. Se não houver sessões, mas houver flashcards, cria uma sessão para cada flashcard
     if ((sessions.length === 0 || !sessions) && flashcards.length > 0) {
       console.log('studyService - Criando sessões a partir dos flashcards'); // Debug
-      flashcards.forEach((flashcard: any, idx: number) => {
+      flashcards.forEach((flashcard: StudyItem, idx: number) => {
         const topic = flashcard.content?.front || `Questão ${idx + 1}`;
         sessions.push({
           id: `${backendData.id || 'plan'}-fc-${idx}`,
@@ -198,8 +228,7 @@ export const studyService = {
     };
   },
 
-  startSimulator: async (numQuestions?: number, timeLimit?: number, stressLevel?: number): Promise<StudyPlan> => {
-    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+  startSimulator: async (studentId: string, numQuestions?: number, timeLimit?: number, stressLevel?: number): Promise<StudyPlan> => {
     const response = await api.post(`/api/study/start-simulator/${studentId}`, {
       num_questions: numQuestions,
       time_limit_seconds: timeLimit,
@@ -223,7 +252,7 @@ export const studyService = {
               options: item.content?.options,
               correct_index: item.content?.correct_index,
               explanation: item.content?.back,
-              stability: item.stability ?? 1.0,
+              stability: item.stability ?? 1,
               current_retention: item.current_retention ?? 0.9,
               topic_roi: item.topic_roi,
               // CORRIGINDO: Adicionando propriedades que estavam faltando no simulator também
@@ -254,11 +283,9 @@ export const studyService = {
     };
   },
 
-  submitReview: async (nodeId: string, success: boolean, responseTime: number, explicitGrade: number | null, rootCause?: string) => {
-    const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'; // TODO: Mudar para dinâmico
-
+  submitReview: async (studentId: string, nodeId: string, success: boolean, responseTime: number, explicitGrade: number | null, rootCause?: string) => {
     const response = await api.post(`/api/study/review/${nodeId}`, {
-      student_id,
+      student_id: studentId,
       success,
       grade: explicitGrade,
       response_time_seconds: responseTime,
@@ -267,24 +294,21 @@ export const studyService = {
     return response.data;
   },
 
-  validateFeynman: async (nodeId: string, explanation: string): Promise<FeynmanResult> => {
-    const student_id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'; // TODO: Mudar para dinâmico
+  validateFeynman: async (studentId: string, nodeId: string, explanation: string): Promise<FeynmanResult> => {
     const response = await api.post('/api/study/feynman/validate', {
-      student_id,
+      student_id: studentId,
       node_id: nodeId,
       explanation,
     });
     return response.data;
   },
 
-  getMemoryStatus: async () => {
-    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+  getMemoryStatus: async (studentId: string) => {
     const response = await api.get(`/api/students/${studentId}/memory-status`);
     return response.data;
   },
 
-  getPerformanceAnalysis: async (subject: string) => {
-    const studentId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+  getPerformanceAnalysis: async (studentId: string, subject: string) => {
     const response = await api.get(`/api/performance/analysis/${studentId}`, {
       params: { subject }
     });

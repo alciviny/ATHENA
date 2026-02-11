@@ -15,7 +15,7 @@ from brain.infrastructure.persistence.models import (
     KnowledgeNodeModel,
 )
 from brain.domain.entities.performance_event import PerformanceEvent, PerformanceEventType, PerformanceMetric
-from brain.domain.entities.student import Student, StudentGoal
+from brain.domain.entities.student import Student
 from brain.domain.entities.knowledge_node import KnowledgeNode
 from brain.domain.entities.study_plan import StudyPlan
 
@@ -60,7 +60,7 @@ async def test_get_recent_events_returns_events(db_session_mock):
 @pytest.mark.asyncio
 async def test_student_repo_get_by_id_found(db_session_mock):
     student_id = uuid4()
-    mock_student_model = StudentModel(id=student_id, name="Test Student", goal=StudentGoal.POLICIA_FEDERAL)
+    mock_student_model = StudentModel(id=student_id, name="Test Student", goal="POLICIA_FEDERAL")
     db_session_mock.execute.return_value.scalars.return_value.first.return_value = mock_student_model
     
     repo = PostgresStudentRepository(db=db_session_mock)

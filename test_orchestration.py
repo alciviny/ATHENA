@@ -1,6 +1,6 @@
 import asyncio
 from uuid import uuid4
-from brain.domain.entities.student import Student, StudentGoal
+from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.policies.rules.retention_drop_rule import RetentionDropRule
 from brain.infrastructure.persistence.in_memory_repositories import (
@@ -38,7 +38,7 @@ async def main():
     )
     await cognitive_repo.save(profile)
 
-    student = Student(id=student_id, name=TEST_STUDENT_NAME, goal=StudentGoal.POLICIA_FEDERAL, cognitive_profile_id=profile.id)
+    student = Student(id=student_id, name=TEST_STUDENT_NAME, email="test@example.com", password_hash="hashed_password", goal="POLICIA_FEDERAL", cognitive_profile_id=profile.id)
     await student_repo.save(student)
 
     # 3. Execução do Use Case

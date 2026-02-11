@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { studyService } from '../services/studyService';
+import { useAuthenticatedAuth } from '../contexts/AuthContext';
+import { useStudentSubjects } from '../hooks/useStudyData';
 import { TrendingUp, AlertTriangle, Target, Brain, Sparkles, ArrowLeft } from 'lucide-react';
 
 interface AnalysisData {
@@ -13,22 +15,15 @@ interface PerformanceAnalysisProps {
 }
 
 export function PerformanceAnalysis({ onBack }: PerformanceAnalysisProps) {
+  const { studentId } = useAuthenticatedAuth();
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Subjects disponíveis (pode vir do backend futuramente)
-  const subjects = [
-    'Direito Constitucional',
-    'Direito Administrativo',
-    'Direito Civil',
-    'Direito Penal',
-    'Direito Processual Civil',
-    'Direito Processual Penal',
-    'Matemática',
-    'Raciocínio Lógico',
-  ];
+  
+  // Use hook para buscar assuntos
+  const { data: subjectsData, isLoading: subjectsLoading } = useStudentSubjects();
+  const subjects = subjectsData?.subjects || [];
 
   const handleAnalyze = async () => {
     if (!selectedSubject) {
@@ -40,7 +35,7 @@ export function PerformanceAnalysis({ onBack }: PerformanceAnalysisProps) {
     setError(null);
 
     try {
-      const result = await studyService.getPerformanceAnalysis(selectedSubject);
+      const result = await studyService.getPerformanceAnalysis(studentId, selectedSubject);
       setAnalysis(result);
     } catch (err: unknown) {
       console.error('Error fetching analysis:', err);
@@ -88,21 +83,46 @@ export function PerformanceAnalysis({ onBack }: PerformanceAnalysisProps) {
             <h2 className="text-lg font-semibold">Selecione a Matéria</h2>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            {subjects.map((subject) => (
-              <button
-                key={subject}
-                onClick={() => setSelectedSubject(subject)}
-                className={`px-4 py-3 rounded-xl font-medium transition-all duration-200 border-2 ${
-                  selectedSubject === subject
-                    ? 'bg-purple-500/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30'
-                    : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                }`}
-              >
-                {subject}
-              </button>
-            ))}
-          </div>
+          {subjectsLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
+              <p className="text-slate-400">Carregando matérias...</p>
+            </div>
+          ) : (
+            <>
+              {subjects.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  {subjects.map((subject) => (
+                    <button
+                      key={subject}
+                      onClick={() => setSelectedSubject(subject)}
+                      className={`px-4 py-3 rounded-xl font-medium transition-all duration-200 border-2 ${
+                        selectedSubject === subject
+                          ? 'bg-purple-500/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30'
+                          : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                      }`}
+                    >
+                      {subject}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Manual input for custom subjects */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Ou digite uma matéria específica:
+                </label>
+                <input
+                  type="text"
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  placeholder="Ex: Direito Administrativo, Matemática, etc."
+                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+            </>
+          )}
 
           <button
             onClick={handleAnalyze}

@@ -10,21 +10,28 @@ if project_root not in sys.path:
 from sqlalchemy.orm import Session
 from brain.infrastructure.persistence.database import SessionLocal, engine, Base
 from brain.infrastructure.persistence.models import StudentModel, CognitiveProfileModel
+from brain.infrastructure.persistence.ensure_schema import ensure_schema
+from brain.api.fastapi.auth.security import get_password_hash
 
 # O ID do estudante que o frontend espera
 STUDENT_ID = uuid.UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479")
 COGNITIVE_PROFILE_ID = uuid.uuid4()
-STUDENT_NAME = "Aluno Teste"
-STUDENT_GOAL = "Polícia Federal"
+STUDENT_NAME = "Test Student"  # Nome de teste
+STUDENT_EMAIL = "test@example.com"  # Email de teste
+STUDENT_PASSWORD = "test123"  # Senha de teste
+STUDENT_GOAL = "POLICIA_FEDERAL"  # Goal de teste
 
 def setup_database():
     """
     Cria as tabelas e popula com os dados iniciais do estudante se necessário.
     """
-    # Cria todas as tabelas no engine.
     print("Verificando e criando tabelas do banco de dados...")
     Base.metadata.create_all(bind=engine)
     print("Tabelas OK.")
+
+    # Ensure schema is up to date
+    print("Verificando e atualizando schema do banco de dados...")
+    ensure_schema()
 
     db: Session = SessionLocal()
 
@@ -32,7 +39,19 @@ def setup_database():
         # Verifica se o estudante já existe
         existing_student = db.query(StudentModel).filter(StudentModel.id == STUDENT_ID).first()
         if existing_student:
-            print(f"Estudante '{STUDENT_NAME}' com ID {STUDENT_ID} já existe. Nada a fazer.")
+            # Update missing authentication fields if needed
+            updated = False
+            if not existing_student.email:
+                existing_student.email = STUDENT_EMAIL
+                updated = True
+            if not existing_student.password_hash:
+                existing_student.password_hash = get_password_hash(STUDENT_PASSWORD)
+                updated = True
+            if updated:
+                db.commit()
+                print(f"Estudante existente atualizado com campos de autenticação.")
+            else:
+                print(f"Estudante '{STUDENT_NAME}' com ID {STUDENT_ID} já existe com autenticação. Nada a fazer.")
             return
 
         print(f"Criando estudante de teste: {STUDENT_NAME}...")
@@ -41,11 +60,14 @@ def setup_database():
         new_student = StudentModel(
             id=STUDENT_ID,
             name=STUDENT_NAME,
+            email=STUDENT_EMAIL,
+            password_hash=get_password_hash(STUDENT_PASSWORD),
             goal=STUDENT_GOAL,
         )
 
         new_profile = CognitiveProfileModel(
             id=COGNITIVE_PROFILE_ID,
+            student_id=STUDENT_ID,  # Set the student_id explicitly
             retention_rate=0.8,
             learning_speed=0.6,
             stress_sensitivity=0.2,

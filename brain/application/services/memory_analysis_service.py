@@ -17,6 +17,11 @@ class MemoryAnalysisService:
         S: Estabilidade da memória
         """
         now = datetime.now(timezone.utc)
+        
+        # Garantir que last_review seja timezone-aware (assumindo UTC se naive)
+        if last_review.tzinfo is None:
+            last_review = last_review.replace(tzinfo=timezone.utc)
+        
         elapsed_days = (now - last_review).total_seconds() / 86400.0
         
         # Evita divisão por zero

@@ -9,7 +9,7 @@ from brain.application.use_cases.generate_study_plan import (
     CognitiveProfileNotFoundError,
 )
 from brain.application.dto.study_plan_dto import StudyPlanOutputDTO
-from brain.domain.entities.student import Student, StudentGoal
+from brain.domain.entities.student import Student
 from brain.domain.entities.cognitive_profile import CognitiveProfile
 from brain.domain.entities.study_plan import StudyPlan
 from types import SimpleNamespace
@@ -65,7 +65,7 @@ async def test_generate_study_plan_success(generate_study_plan_use_case, mock_st
     Testa o caso de sucesso da geração de um plano de estudos.
     """
     student_id = uuid4()
-    mock_student = Student(id=student_id, name="Test Student", goal=StudentGoal.POLICIA_FEDERAL)
+    mock_student = Student(id=student_id, name="Test Student", email="test@example.com", password_hash="hashed_password", goal="POLICIA_FEDERAL")
     mock_profile = CognitiveProfile(
         id=uuid4(), 
         student_id=student_id,
@@ -130,7 +130,7 @@ async def test_cognitive_profile_not_found(generate_study_plan_use_case, mock_st
     Testa se a exceção CognitiveProfileNotFoundError é levantada quando o perfil não é encontrado.
     """
     student_id = uuid4()
-    mock_student = Student(id=student_id, name="Test Student", goal=StudentGoal.INSS)
+    mock_student = Student(id=student_id, name="Test Student", email="test@example.com", password_hash="hashed_password", goal="INSS")
 
     mock_student_repo.get_by_id.return_value = mock_student
     mock_cognitive_profile_repo.get_by_student_id.return_value = None
@@ -155,7 +155,7 @@ async def test_fail_fast_when_no_ai_and_flag_false(
     o caso de uso deve falhar rapidamente (fail-fast) em vez de usar fallbacks.
     """
     student_id = uuid4()
-    mock_student = Student(id=student_id, name="Test Student", goal=StudentGoal.INSS)
+    mock_student = Student(id=student_id, name="Test Student", email="test@example.com", password_hash="hashed_password", goal="INSS")
     mock_profile = CognitiveProfile(
         id=uuid4(),
         student_id=student_id,

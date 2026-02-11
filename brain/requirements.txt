@@ -12,6 +12,10 @@ pytest-asyncio==0.23.7
 asyncpg==0.29.0
 aiosqlite==0.20.0
 pytest-mock==3.14.0
+# --- Security ---
+python-jose[cryptography]==3.3.0
+passlib[argon2]==1.7.4
+python-multipart==0.0.9
 # --- IA & Vector Store ---
 qdrant-client>=1.9.0
 google-generativeai>=0.7.2
@@ -20,3 +24,5 @@ groq>=0.5.0
 pypdf==3.17.0
 tiktoken==0.5.2
 langchain-text-splitters==0.0.1
+# --- Performance Testing ---
+psutil==5.9.8

@@ -64,44 +64,25 @@ export interface StudyPlan {
 
 
 export interface KnowledgeNode {
+  id: string;
+  name?: string; // Algumas vezes vem como name
+  topic?: string; // Backend pode enviar como topic
+  subject?: string;
+  roi_score: number;
+  roi_status?: string; // High, Medium, Low
+  difficulty: number;
+  stability: number;
+  weight?: number;
+  status?: string;
+  x?: number;
+  y?: number;
+}
 
-    id: string;
-
-    name: string;
-
-    roi_score: number;
-
-    difficulty: number;
-
-    stability: number;
-
-    weight?: number;
-
-    status?: string;
-
-    x?: number;
-
-    y?: number;
-
-  }
-
-  
-
-
-
-  export interface RoiReport {
-
-
-
-    nodes: KnowledgeNode[];
-
-
-
-    links: { source: string; target: string; }[];
-
-
-
-  }
+export interface RoiReport {
+  nodes: KnowledgeNode[];
+  links: { source: string; target: string; }[];
+  overall_roi?: number;
+}
 
 
 

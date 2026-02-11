@@ -7,15 +7,15 @@ services:
     container_name: athena_db
     restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: athena
+      POSTGRES_USER: ${DB_USER:-athena_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password_123}
+      POSTGRES_DB: ${DB_NAME:-athena}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d athena"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-athena_user} -d ${DB_NAME:-athena}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,14 +42,17 @@ services:
     command: sh -c "python /app/brain/create_db.py && uvicorn brain.api.fastapi.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       PYTHONUNBUFFERED: 1
-      # Conecta no Postgres interno
-      DATABASE_URL: postgresql://user:pass@postgres:5432/athena
-      # Conecta no Qdrant interno
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-athena_user}:${DB_PASSWORD:-secure_password_123}@postgres:${DB_PORT:-5432}/${DB_NAME:-athena}
+      # Vector DB
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
-      # Chave da API do Gemini
+      # AI APIs
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GROQ_API_KEY: ${GROQ_API_KEY}
+      # Security
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_this_in_production_very_long_secret_key}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,7 +65,7 @@ services:
     container_name: athena_worker
     restart: always
     environment:
-      DATABASE_URL: postgres://user:pass@postgres:5432/athena
+      DATABASE_URL: postgresql://${DB_USER:-athena_user}:${DB_PASSWORD:-secure_password_123}@postgres:${DB_PORT:-5432}/${DB_NAME:-athena}
     depends_on:
       postgres:
         condition: service_healthy

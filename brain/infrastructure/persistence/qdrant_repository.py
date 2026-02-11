@@ -42,17 +42,48 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
         logger.info(f"QdrantRepo (Sync) initialized at {url}")
 
     async def _generate_query_embedding(self, text: str) -> List[float]:
+        """
+        Gera embedding para texto usando Gemini com fallback robusto.
+        """
+        if not text or not text.strip():
+            logger.warning("Texto vazio fornecido para geração de embedding")
+            return []
+
         try:
+            # Valida se a API key está configurada
+            if not settings.GEMINI_API_KEY:
+                logger.error("GEMINI_API_KEY não configurada")
+                return []
+
+            # Limpa e prepara o texto
+            clean_text = text.strip()
+            if len(clean_text) > 10000:  # Limite do Gemini
+                clean_text = clean_text[:10000]
+                logger.warning(f"Texto truncado para 10000 caracteres")
+
             # Usa thread para não bloquear o loop principal
             result = await asyncio.to_thread(
                 genai.embed_content,
                 model="models/gemini-embedding-001",
-                content=text,
+                content=clean_text,
                 task_type="retrieval_query"
             )
-            return result['embedding']
+
+            embedding = result.get('embedding', [])
+            if not embedding:
+                logger.error("Embedding vazio retornado pela API")
+                return []
+
+            # Valida se é uma lista de floats
+            if not isinstance(embedding, list) or not all(isinstance(x, (int, float)) for x in embedding):
+                logger.error(f"Embedding inválido: {type(embedding)}")
+                return []
+
+            logger.debug(f"Embedding gerado com {len(embedding)} dimensões")
+            return embedding
+
         except Exception as e:
-            logger.error(f"Erro ao gerar embedding: {e}")
+            logger.error(f"Erro ao gerar embedding para texto '{text[:50]}...': {e}")
             return []
 
     async def search_context(self, query: str, limit: int = 3) -> str:
@@ -99,38 +130,76 @@ class QdrantKnowledgeVectorRepository(KnowledgeVectorRepository):
             return ""
 
     async def find_semantically_related(self, reference_node_id: UUID, *, limit: int = 5) -> List[UUID]:
+        """
+        Encontra nós semanticamente relacionados usando busca vetorial por similaridade.
+        Estratégia: busca nós próximos ao vetor do nó de referência.
+        """
         try:
-            # Alguns ambientes de teste injetam um cliente async (AsyncMock).
-            # Chamamos await para compatibilidade com ambos os casos.
-            recommend_coro = self._client.recommend(
-                collection_name=self._collection,
-                positive=[str(reference_node_id)],
-                limit=limit,
-                with_payload=False,
-                with_vectors=False,
-            )
+            # Primeiro, recupera o vetor do nó de referência
+            reference_vector = await self._get_node_vector(str(reference_node_id))
+            if not reference_vector:
+                logger.warning(f"Vetor não encontrado para nó {reference_node_id}")
+                return []
 
-            if asyncio.iscoroutine(recommend_coro):
-                response = await recommend_coro
-            else:
-                # Cliente síncrono retornou diretamente
-                response = recommend_coro
+            # Faz busca por similaridade vetorial
+            def _do_search():
+                response = self._client.query_points(
+                    collection_name=self._collection,
+                    query=reference_vector,
+                    limit=limit + 1,  # +1 para excluir o próprio nó
+                    with_payload=False,
+                    with_vectors=False,
+                )
+                return response.points
 
-            # response é uma lista de ScoredPoint-like
-            ids = []
-            for p in response:
+            # Executa busca em thread para não bloquear
+            points = await asyncio.to_thread(_do_search)
+
+            # Extrai IDs, excluindo o próprio nó de referência
+            related_ids = []
+            for point in points:
                 try:
-                    ids.append(UUID(str(p.id)))
-                except Exception:
+                    node_id = UUID(str(point.id))
+                    if node_id != reference_node_id:  # Exclui o próprio nó
+                        related_ids.append(node_id)
+                        if len(related_ids) >= limit:
+                            break
+                except (ValueError, AttributeError):
                     continue
-            return ids
+
+            logger.info(f"Encontrados {len(related_ids)} nós relacionados para {reference_node_id}")
+            return related_ids
 
         except Exception as exc:
-            # Tratar cenários de erro de forma resiliente para não quebrar o fluxo
-            logger.error("Falha crítica ao acessar Qdrant para busca semântica.", exc_info=exc)
-            try:
-                # Se a API do cliente produziu uma exceção específica, logue como aviso
-                logger.warning("Qdrant respondeu de forma inesperada ao recomendar similaridade.")
-            except Exception:
-                pass
+            logger.error(f"Falha ao buscar nós semanticamente relacionados: {exc}", exc_info=exc)
             return []
+
+    async def _get_node_vector(self, node_id: str) -> Optional[List[float]]:
+        """
+        Recupera o vetor de um nó específico do Qdrant.
+        """
+        try:
+            def _retrieve_vector():
+                response = self._client.retrieve(
+                    collection_name=self._collection,
+                    ids=[node_id],
+                    with_vectors=True
+                )
+                return response
+
+            points = await asyncio.to_thread(_retrieve_vector)
+
+            if points and len(points) > 0:
+                vector = points[0].vector
+                if vector:
+                    return vector
+                else:
+                    logger.warning(f"Nó {node_id} não possui vetor")
+                    return None
+            else:
+                logger.warning(f"Nó {node_id} não encontrado na coleção")
+                return None
+
+        except Exception as exc:
+            logger.error(f"Erro ao recuperar vetor do nó {node_id}: {exc}")
+            return None

@@ -4,11 +4,16 @@ from pydantic import BaseModel
 from brain.api.fastapi.dependencies import (
     get_analyze_student_performance_use_case,
     get_record_review_use_case,
+    get_performance_repository,
+    get_knowledge_repository,
 )
 from brain.application.use_cases.analyze_student_performance import (
     AnalyzeStudentPerformance,
 )
 from brain.application.use_cases.record_review import RecordReviewUseCase
+from brain.application.ports.repositories import PerformanceRepository, KnowledgeRepository
+
+from statistics import mean
 
 router = APIRouter(tags=["Student Performance"])
 
@@ -64,3 +69,45 @@ async def analyze_performance(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erro na análise: {type(e).__name__}: {str(e)}")
+
+
+@router.get(
+    "/subjects/{student_id}",
+    status_code=status.HTTP_200_OK,
+    summary="List available subjects for a student",
+)
+async def get_student_subjects(
+    student_id: UUID,
+    knowledge_repo: KnowledgeRepository = Depends(get_knowledge_repository),
+    performance_repo: PerformanceRepository = Depends(get_performance_repository),
+):
+    """Get all unique subjects that a student has interacted with (has performance events)."""
+    try:
+        # Get all performance events for the student
+        performance_events = await performance_repo.get_history_for_student(student_id)
+        
+        # Extract unique node_ids from performance events
+        node_ids = set()
+        for event in performance_events:
+            if hasattr(event, 'node_id') and event.node_id:
+                node_ids.add(event.node_id)
+        
+        # Get knowledge nodes for these IDs
+        subjects = set()
+        for node_id in node_ids:
+            try:
+                node = await knowledge_repo.get_by_id(node_id)
+                if node and node.subject:
+                    subjects.add(node.subject)
+            except:
+                continue  # Skip if node not found
+        
+        subjects_list = sorted(list(subjects))
+        
+        return {
+            "student_id": student_id,
+            "subjects": subjects_list,
+            "total_subjects": len(subjects_list)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar matérias: {e}")
